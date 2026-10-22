@@ -763,8 +763,8 @@ body:not(.locked) #login{display:none}
   const typeEl = $("lg-type");
   // ph: details placeholder · amt / extra: field labels (null hides the field) · tick: quest ids the entry checks off today
   const LOGHINT = {
-    estimate:{ph:"Client and scope, e.g. kitchen + hallway", amt:"Quoted ($)", extra:null,        tick:["sales","move"]},
-    sale:    {ph:"Client and scope, e.g. full exterior",     amt:"Sold ($)",   extra:"Man-days",  tick:["sales","move"]},
+    estimate:{ph:"Client and scope, e.g. kitchen + hallway", amt:"Quoted ($)", extra:null,        tick:["sales"]},
+    sale:    {ph:"Client and scope, e.g. full exterior",     amt:"Sold ($)",   extra:"Man-days",  tick:["sales","sold"]},
     workout: {ph:"Upper day, felt strong",                   amt:null,         extra:null,        tick:["train"]},
     money:   {ph:"Moved $500 to savings",                    amt:"Amount ($)", extra:null,        tick:[]},
     win:     {ph:"Anything worth remembering",               amt:null,         extra:null,        tick:[]},

@@ -1,6 +1,6 @@
 // Offline shell: app files come from cache first and refresh in the background.
 // Supabase API calls are never cached. Bump VERSION when shipping a change.
-const VERSION = "system-v5";
+const VERSION = "system-v6";
 const SHELL = ["./", "index.html", "config.js", "manifest.webmanifest", "vendor/supabase-2.117.2.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/icon-maskable-512.png"];
 
