@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#14204a"/><stop offset=".55" stop-color="#070d1f"/><stop offset="1" stop-color="#05070d"/>
+    </radialGradient>
+    <filter id="glow" filterUnits="userSpaceOnUse" x="-300" y="-300" width="1112" height="1112">
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(256 256) scale(.72) translate(-256 -256)">
+  <g filter="url(#glow)" fill="none">
+    <g transform="rotate(45 256 256)">
+      <rect x="131" y="131" width="250" height="250" rx="10" stroke="#3fa9ff" stroke-width="12"/>
+      <rect x="156" y="156" width="200" height="200" rx="6" stroke="#9d7bff" stroke-width="4" opacity=".8"/>
+    </g>
+  </g>
+  <path filter="url(#glow)" d="M311 201 H243 L215 229 V283 L243 311 H311" fill="none" stroke="#e3d9ff" stroke-width="28"/>
+  <g stroke="#3fa9ff" stroke-width="10" fill="none" stroke-linecap="square">
+    <path d="M72 128 V72 H128"/><path d="M440 384 V440 H384"/>
+  </g>
+  </g>
+</svg>
