@@ -336,7 +336,7 @@ body:not(.locked) #login{display:none}
           <label class="f" for="lg-text">Details<input id="lg-text" type="text"></label>
           <div class="two">
             <label class="f" for="lg-amt" id="lg-amt-l">Amount ($)<input id="lg-amt" type="number" inputmode="decimal" step="0.01" placeholder="0"></label>
-            <label class="f" for="lg-extra" id="lg-extra-l">Work days<input id="lg-extra" type="number" inputmode="decimal" step="0.5" placeholder="0"></label>
+            <label class="f" for="lg-extra" id="lg-extra-l">Man-days<input id="lg-extra" type="number" inputmode="decimal" step="0.5" placeholder="0"></label>
           </div>
           <button class="btn solid" type="submit">Record</button>
         </form>
@@ -538,7 +538,7 @@ body:not(.locked) #login{display:none}
     while (full(keyOf(d))) { s++; d.setDate(d.getDate()-1); }
     return s;
   }
-  // Sales numbers come from Log entries: type "estimate", and type "sale" (amount = dollars sold, days = work days).
+  // Sales numbers come from Log entries: type "estimate", and type "sale" (amount = dollars sold, days = man-days).
   function salesBetween(from, to){
     let sold = 0, sales = 0, ests = 0, workDays = 0;
     for (const [k, d] of Object.entries(days)){
@@ -589,7 +589,7 @@ body:not(.locked) #login{display:none}
       $("sl-sales").textContent = thisWeek.sales;
       $("sl-close").textContent = cr===null ? "—" : cr+"%";
       $("sl-close-l").textContent = S.closeTarget ? `Close · goal ${S.closeTarget}%` : "Close rate";
-      $("sl-days").textContent = `${thisWeek.workDays} work day${thisWeek.workDays===1?"":"s"} sold this week`;
+      $("sl-days").textContent = `${thisWeek.workDays} man-day${thisWeek.workDays===1?"":"s"} sold this week`;
       $("sl-month").textContent = `${money(thisMonth.sold)} this month`;
     }
 
@@ -689,7 +689,7 @@ body:not(.locked) #login{display:none}
     for (const kk of Object.keys(days).sort().reverse()) for (const e of (days[kk].entries||[]).slice().reverse()) all.push({...e, day:kk});
     $("entries").innerHTML = all.length ? all.slice(0,25).map(e => {
       const amt = typeof e.amount==="number" ? e.amount : null;
-      const extra = [e.extra, typeof e.days==="number" ? `${e.days} work day${e.days===1?"":"s"}` : ""].filter(Boolean).join(" · ");
+      const extra = [e.extra, typeof e.days==="number" ? `${e.days} man-day${e.days===1?"":"s"}` : ""].filter(Boolean).join(" · ");
       return `<div class="entry"><span class="tag">${esc(e.type)}</span><div class="grow">${esc(e.text||"")}<small>${esc(e.day)}${extra?" · "+esc(extra):""}</small></div>${amt!==null?`<span class="amt${e.type==="sale"?" pos":""}">${money(amt)}</span>`:""}</div>`;
     }).join("") : `<div class="empty">Nothing recorded yet. Log an estimate, a sale, or a workout above.</div>`;
   }
@@ -764,7 +764,7 @@ body:not(.locked) #login{display:none}
   // ph: details placeholder · amt / extra: field labels (null hides the field) · tick: quest ids the entry checks off today
   const LOGHINT = {
     estimate:{ph:"Client and scope, e.g. kitchen + hallway", amt:"Quoted ($)", extra:null,        tick:["sales","move"]},
-    sale:    {ph:"Client and scope, e.g. full exterior",     amt:"Sold ($)",   extra:"Work days", tick:["sales","move"]},
+    sale:    {ph:"Client and scope, e.g. full exterior",     amt:"Sold ($)",   extra:"Man-days",  tick:["sales","move"]},
     workout: {ph:"Upper day, felt strong",                   amt:null,         extra:null,        tick:["train"]},
     money:   {ph:"Moved $500 to savings",                    amt:"Amount ($)", extra:null,        tick:[]},
     win:     {ph:"Anything worth remembering",               amt:null,         extra:null,        tick:[]},
