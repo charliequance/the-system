@@ -999,7 +999,15 @@ body:not(.locked) #login{display:none}
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { pull(); if (today()!==lastDay){ lastDay=today(); render(); } } });
   window.addEventListener("online", () => { pull(); });
 
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  // Check for a new version whenever the app comes back on screen, and reload once when it takes over,
+  // so a change shows on the next open instead of the one after.
+  if ("serviceWorker" in navigator){
+    const hadWorker = !!navigator.serviceWorker.controller; let reloaded = false;
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+    }).catch(() => {});
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadWorker && !reloaded){ reloaded = true; location.reload(); } });
+  }
 })();
 </script>
 </body>
