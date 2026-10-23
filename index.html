@@ -485,8 +485,10 @@ body:not(.locked) #login{display:none}
   const mondayOf = k => addDays(k, -((parseKey(k).getDay()+6)%7));
   const shortDate = k => parseKey(k).toLocaleDateString("en-CA",{month:"short",day:"numeric"});
   const questsFor = k => parseKey(k).getDay()===0 ? daily().concat(sunday()) : daily();
-  const levelFromXp = xp => Math.floor(Math.sqrt(xp/40))+1;
-  const xpForLevel = L => 40*(L-1)*(L-1);
+  // XP to reach level L is base·(L−1)^power. config.player.levelCurve retunes the pace; the fallback is the original 40·(L−1)².
+  const curve = () => ({base:40, power:2, ...(config?.player?.levelCurve||{})});
+  const levelFromXp = xp => { const c = curve(); return Math.floor(Math.pow(Math.max(0,xp)/c.base, 1/c.power) + 1e-9)+1; };
+  const xpForLevel = L => { const c = curve(); return Math.round(c.base*Math.pow(L-1, c.power)); };
   const pick = (table, L) => table.find(([min]) => L>=min)[1];
 
   // ---------- state + storage ----------
