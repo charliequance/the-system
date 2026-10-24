@@ -782,11 +782,13 @@ body:not(.locked) #login{display:none}
 
     // entries
     const all = [];
-    for (const kk of Object.keys(days).sort().reverse()) for (const e of (days[kk].entries||[]).slice().reverse()) all.push({...e, day:kk});
+    for (const kk of Object.keys(days).sort().reverse()) (days[kk].entries||[]).forEach((e, i) => all.unshift({...e, day:kk, i}));
+    all.sort((a,b) => a.day===b.day ? b.i-a.i : a.day<b.day ? 1 : -1);
     $("entries").innerHTML = all.length ? all.slice(0,25).map(e => {
       const amt = typeof e.amount==="number" ? e.amount : null;
       const extra = [e.extra, typeof e.days==="number" ? `${e.days} man-day${e.days===1?"":"s"}` : ""].filter(Boolean).join(" · ");
-      return `<div class="entry"><span class="tag">${esc(e.type)}</span><div class="grow">${esc(e.text||"")}<small>${esc(e.day)}${extra?" · "+esc(extra):""}</small></div>${amt!==null?`<span class="amt${e.type==="sale"?" pos":e.type==="spend"?" neg":""}">${money(amt)}</span>`:""}</div>`;
+      return `<div class="entry"><span class="tag">${esc(e.type)}</span><div class="grow">${esc(e.text||"")}<small>${esc(e.day)}${extra?" · "+esc(extra):""}</small></div>${amt!==null?`<span class="amt${e.type==="sale"?" pos":e.type==="spend"?" neg":""}">${money(amt)}</span>`:""}
+        <button class="btn tiny" type="button" data-logdel="${esc(e.day)}|${e.i}" aria-label="Delete ${esc(e.text || e.type)}">✕</button></div>`;
     }).join("") : `<div class="empty">Nothing recorded yet. Log an estimate, a sale, or a workout above.</div>`;
   }
 
@@ -938,6 +940,21 @@ body:not(.locked) #login{display:none}
     const label = typeEl.selectedOptions[0].textContent;
     toast(levelFromXp(after) > levelFromXp(before) ? `LEVEL UP · <b>LV ${levelFromXp(after)}</b> · Check the shop`
       : `${esc(label)} recorded${gained > 0 ? ` · <b>+${gained} XP</b>` : ""}`);
+  });
+
+  // Deleting a record takes back what it gave: its log XP, and any quest it ticked that no other record that day still ticks.
+  $("entries").addEventListener("click", e => {
+    const b = e.target.closest("[data-logdel]"); if (!b) return;
+    const [k, idx] = b.dataset.logdel.split("|"), d = days[k], gone = d?.entries?.[Number(idx)]; if (!gone) return;
+    if (!confirm(`Delete this ${gone.type}${gone.text ? `: ${gone.text}` : ""}?`)) return;
+    const entries = d.entries.filter((_, i) => i !== Number(idx));
+    const patch = {entries};
+    const ticks = LOGHINT[gone.type]?.tick || [];
+    const still = id => entries.some(x => (LOGHINT[x.type]?.tick || []).includes(id));
+    const drop = ticks.filter(id => d.q?.[id] && !still(id));
+    if (drop.length) patch.q = Object.assign({}, d.q, Object.fromEntries(drop.map(id => [id, false])));
+    saveDay(k, patch);
+    toast("Record deleted");
   });
 
   $("spform").addEventListener("submit", e => {
