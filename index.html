@@ -468,6 +468,7 @@ body:not(.locked) #login{display:none}
   const SALES = () => config?.sales || null;
   // The Spend tab switches on when system/config has spending:{weeklyLimit, goldPerDollar, since, scoreFrom, bigPerWeek, categories, caps}.
   // Entries are type "spend" (amount, cat, big). Big buys and fixed categories (bills) never count toward the weekly limit.
+  // subscriptions:[{name, amount, per:"week"|"month"|"year", since?, until?}] add their weekly share to every week's total on their own.
   const SPEND = () => config?.spending || null;
   const RANKS = [[70,"S"],[50,"A"],[35,"B"],[20,"C"],[10,"D"],[1,"E"]];
   const TITLES = [[70,"Shadow Monarch"],[50,"National-Level"],[35,"Gate Breaker"],[20,"Rising Hunter"],[10,"Awakened"],[1,"The Weakest Hunter"]];
@@ -614,9 +615,15 @@ body:not(.locked) #login{display:none}
     const s = salesBetween(keyOf(d));
     return s.ests ? Math.min(100, Math.round(s.sales/s.ests*100)) : null;
   }
+  const PER_WEEK = {week:1, month:12/52, year:1/52};
+  const subsFor = mon => (SPEND()?.subscriptions||[])
+    .filter(x => (!x.since || addDays(mon, 6) >= x.since) && (!x.until || mon <= x.until))
+    .map(x => ({name:x.name, weekly:Math.round((x.amount||0)*(PER_WEEK[x.per] ?? PER_WEEK.month)*100)/100}));
   function spendWeek(mon){
     const fixed = new Set((SPEND()?.categories||[]).filter(c => c.fixed).map(c => c.id));
-    const w = {mon, total:0, bills:0, big:0, byCat:{}, list:[], logged:false};
+    const subs = subsFor(mon), subsTotal = subs.reduce((t, x) => t + x.weekly, 0);
+    // subscriptions count toward the limit but don't make a week "logged"
+    const w = {mon, total:subsTotal, subs, subsTotal, bills:0, big:0, byCat:{}, list:[], logged:false};
     for (let i=0;i<7;i++){ const k = addDays(mon, i);
       for (const e of (days[k]?.entries||[])){
         if (e.type!=="spend") continue;
@@ -809,11 +816,13 @@ body:not(.locked) #login{display:none}
     // mini targets: each cap covers one or more categories; uncapped day-to-day categories show once they have spending
     const capped = new Set((P.caps||[]).flatMap(c => c.cats));
     const rows = (P.caps||[]).map(c => ({name:c.name, cap:c.amt, amt:c.cats.reduce((s,id) => s+(w.byCat[id]||0), 0)}))
-      .concat(cats.filter(c => !c.fixed && !capped.has(c.id) && w.byCat[c.id]).map(c => ({name:c.name, amt:w.byCat[c.id]})));
+      .concat(cats.filter(c => !c.fixed && !capped.has(c.id) && w.byCat[c.id]).map(c => ({name:c.name, amt:w.byCat[c.id]})))
+      .concat(w.subsTotal ? [{name:"Subscriptions (automatic)", amt:w.subsTotal, cents:true}] : []);
     $("sp-caps").innerHTML = rows.map(r => { const hasCap = typeof r.cap==="number", hot = hasCap && r.amt > r.cap;
-      return `<div class="cap"><div class="row between"><span>${esc(r.name)}</span><span class="mono${hot?" neg":""}">${money(r.amt)}${hasCap?` <span class="sub">/ ${money(r.cap)}</span>`:""}</span></div>
+      return `<div class="cap"><div class="row between"><span>${esc(r.name)}</span><span class="mono${hot?" neg":""}">${r.cents ? cash(r.amt) : money(r.amt)}${hasCap?` <span class="sub">/ ${money(r.cap)}</span>`:""}</span></div>
         ${hasCap?`<div class="bar thin${hot?" red":""}"><i style="width:${Math.min(100, r.cap ? r.amt/r.cap*100 : 100)}%"></i></div>`:""}</div>`; }).join("");
-    $("sp-bills").textContent = w.bills ? `Bills this week: ${money(w.bills)}, not counted in the limit.` : "";
+    $("sp-bills").textContent = [w.subs.length ? `Added every week: ${w.subs.map(x => `${x.name} ${cash(x.weekly)}`).join(", ")}.` : "",
+      w.bills ? `Bills this week: ${money(w.bills)}, not counted in the limit.` : ""].filter(Boolean).join(" ");
 
     const opts = cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
     const sel = $("sp-cat");
