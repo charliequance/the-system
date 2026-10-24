@@ -337,6 +337,10 @@ body:not(.locked) #login{display:none}
       <div class="win">
         <div class="win-title gold-h">Big buys pot</div>
         <div class="row between"><span class="sub" id="sp-pot-note"></span><span class="gold-big mono" id="sp-pot">$0</span></div>
+        <form class="row" id="cashform" style="margin-top:10px">
+          <label class="f grow" for="cash-amt"><span id="cash-l">Cash out to gold</span><input id="cash-amt" type="number" inputmode="decimal" step="1" min="1" placeholder="$ amount"></label>
+          <button class="btn solid" type="submit" id="cash-go" style="align-self:flex-end">Cash out</button>
+        </form>
         <div id="sp-bigs" style="margin-top:6px"></div>
       </div>
       <div class="win">
@@ -623,9 +627,11 @@ body:not(.locked) #login{display:none}
     const fixed = new Set((SPEND()?.categories||[]).filter(c => c.fixed).map(c => c.id));
     const subs = subsFor(mon), subsTotal = subs.reduce((t, x) => t + x.weekly, 0);
     // subscriptions count toward the limit but don't make a week "logged"
-    const w = {mon, total:subsTotal, subs, subsTotal, bills:0, big:0, byCat:{}, list:[], logged:false};
+    const w = {mon, total:subsTotal, subs, subsTotal, bills:0, big:0, byCat:{}, list:[], logged:false, cashed:0, cashGold:0, cashouts:[]};
     for (let i=0;i<7;i++){ const k = addDays(mon, i);
       for (const e of (days[k]?.entries||[])){
+        // a cash-out (amount = dollars taken from the pot, gold = what it paid at the time) isn't spending
+        if (e.type==="cashout"){ w.cashed += e.amount||0; w.cashGold += e.gold||0; w.cashouts.push({...e, day:k}); continue; }
         if (e.type!=="spend") continue;
         const a = typeof e.amount==="number" ? e.amount : 0;
         w.logged = true; w.list.push({...e, day:k});
@@ -638,6 +644,7 @@ body:not(.locked) #login{display:none}
   }
   // Each week's (limit − spent) × goldPerDollar is shown live and locks into gold when Sunday ends; a week with nothing logged scores nothing.
   // The pot gains bigPerWeek every Monday from `since`; a big buy past what's in it takes the pot negative until later Mondays pay it back.
+  // Cash-outs move pot dollars into gold at potGoldPerDollar, stored on the entry so a later rate change doesn't rewrite them.
   function spending(){
     const P = SPEND(), cur = mondayOf(today());
     if (!P) return {gold:0, pot:0, weeks:[], cur:null};
@@ -645,7 +652,7 @@ body:not(.locked) #login{display:none}
     let gold = 0, pot = 0; const weeks = [];
     for (let mon = mondayOf(P.since || today()); mon <= cur; mon = addDays(mon, 7)){
       const w = spendWeek(mon);
-      pot += P.bigPerWeek || 0; pot -= w.big;
+      pot += P.bigPerWeek || 0; pot -= w.big + w.cashed; gold += w.cashGold;
       w.practice = mon < scoreFrom;
       w.gold = Math.floor(((P.weeklyLimit||0) - w.total) * rate);
       if (mon < cur && !w.practice && w.logged) gold += w.gold;
@@ -835,8 +842,13 @@ body:not(.locked) #login{display:none}
     $("sp-pot").textContent = money(sp.pot); $("sp-pot").classList.toggle("neg", sp.pot < 0);
     $("sp-pot-note").textContent = sp.pot < 0 ? `In the minus. +${money(P.bigPerWeek||0)} every Monday pays it back`
       : `+${money(P.bigPerWeek||0)} every Monday, unused money rolls over`;
-    const bigs = sp.weeks.flatMap(x => x.list.filter(e => e.big)).sort(byNewest).slice(0, 5);
-    $("sp-bigs").innerHTML = bigs.length ? bigs.map(row).join("") : `<div class="empty">No big buys yet. Tick "Big buy" when you log one.</div>`;
+    const potRate = P.potGoldPerDollar ?? 1;
+    $("cash-l").textContent = `Cash out to gold · ${potRate} G per $1`;
+    $("cash-amt").max = Math.max(0, Math.floor(sp.pot)); $("cash-go").disabled = sp.pot < 1;
+    const cashRow = e => `<div class="entry"><span class="tag">Cash-out</span><div class="grow">${cash(e.amount)} to gold<small>${esc(shortDate(e.day))}</small></div>
+      <span class="amt gold-h">+${(e.gold||0).toLocaleString()} G</span><button class="btn tiny" type="button" data-del="${esc(e.day)}|${esc(e.ts)}" aria-label="Undo cash-out of ${cash(e.amount)}">✕</button></div>`;
+    const bigs = sp.weeks.flatMap(x => x.list.filter(e => e.big).concat(x.cashouts)).sort(byNewest).slice(0, 6);
+    $("sp-bigs").innerHTML = bigs.length ? bigs.map(e => e.type==="cashout" ? cashRow(e) : row(e)).join("") : `<div class="empty">No big buys yet. Tick "Big buy" when you log one.</div>`;
     const mine = w.list.slice().sort(byNewest);
     $("sp-entries").innerHTML = mine.length ? mine.map(row).join("") : `<div class="empty">Nothing logged this week. Log every purchase, even a coffee.</div>`;
 
@@ -980,12 +992,23 @@ body:not(.locked) #login{display:none}
     toast(entry.big ? `Big buy recorded · pot <b>${money(after.pot)}</b>`
       : `Spending recorded · <b>${cash(Math.abs(left))}</b> ${left >= 0 ? "left" : "over"}`);
   });
+  $("cashform").addEventListener("submit", e => {
+    e.preventDefault();
+    const amount = Math.floor(Number($("cash-amt").value)), pot = spending().pot;
+    if (!(amount >= 1) || amount > pot) { $("cash-amt").focus(); if (amount > pot) toast(`Only <b>${money(pot)}</b> in the pot`); return; }
+    const gold = Math.floor(amount * (SPEND()?.potGoldPerDollar ?? 1));
+    const k = today(), d = days[k] || {entries:[]};
+    saveDay(k, {entries:(d.entries||[]).concat([{type:"cashout", text:"Big buys pot to gold", amount, gold, ts:Date.now()}])});
+    $("cash-amt").value = "";
+    toast(`Cashed out ${money(amount)} · <b>+${gold.toLocaleString()} G</b>`);
+  });
   $("v-spend").addEventListener("click", e => {
     const b = e.target.closest("[data-del]"); if (!b) return;
     const [k, ts] = b.dataset.del.split("|"), d = days[k]; if (!d) return;
-    if (!confirm("Delete this purchase?")) return;
-    saveDay(k, {entries:(d.entries||[]).filter(x => !(x.type==="spend" && String(x.ts)===ts))});
-    toast("Purchase deleted");
+    if (!confirm(b.getAttribute("aria-label").startsWith("Undo") ? "Undo this cash-out? The money goes back in the pot." : "Delete this purchase?")) return;
+    const gone = (d.entries||[]).find(x => (x.type==="spend" || x.type==="cashout") && String(x.ts)===ts);
+    saveDay(k, {entries:(d.entries||[]).filter(x => x !== gone)});
+    toast(gone?.type==="cashout" ? `Cash-out undone · <b>−${(gone.gold||0).toLocaleString()} G</b>` : "Purchase deleted");
   });
 
   // ---------- auth ----------
