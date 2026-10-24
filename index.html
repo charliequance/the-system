@@ -356,6 +356,7 @@ body:not(.locked) #login{display:none}
       <div class="win">
         <div class="win-title"><span class="bang">!</span>Shop</div>
         <div class="row between"><span class="sub">Every 4 XP earns 1 gold. Spend it on real rewards, guilt-free.</span><span class="gold-big mono"><span id="gold2">0</span> G</span></div>
+        <div class="sub" id="shop-note" style="margin-top:6px" hidden></div>
         <div id="shop" style="margin-top:8px"></div>
       </div>
       <div class="win">
@@ -709,6 +710,7 @@ body:not(.locked) #login{display:none}
     const gold = Math.floor(xp*GOLD_PER_XP) - (progress.spent||0) + sp.gold;
     for (const id of ["gold","gold2"]){ $(id).textContent = gold.toLocaleString(); $(id).parentElement.classList.toggle("debt", gold < 0); }
     const rewards = (config?.rewards && config.rewards.length) ? config.rewards : REWARDS;
+    $("shop-note").textContent = config?.shopNote || ""; $("shop-note").hidden = !config?.shopNote;
     $("shop").innerHTML = rewards.map(r => `<div class="shop-item"><div class="txt"><b>${esc(r.name)}</b><small class="mono">${r.cost} G</small></div>
       <button class="btn tiny${gold>=r.cost?" solid":""}" data-buy="${esc(r.id)}" ${gold>=r.cost?"":"disabled"}>${gold>=r.cost?"Redeem":"Locked"}</button></div>`).join("");
     $("t-spend").hidden = !SPEND();
