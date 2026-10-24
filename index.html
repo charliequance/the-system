@@ -172,6 +172,25 @@ button{font:inherit}
 .gold-big.neg,.gold-big.debt,.gold-h.neg{color:var(--red);text-shadow:none}
 .entry .btn.tiny{height:fit-content}
 
+/* week report + history */
+.report{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.report .rank{width:62px;height:62px;font-size:30px}
+.chips.six{margin-top:12px}
+.ch{margin-top:12px}
+.ch-h{font-family:var(--f-display);letter-spacing:.12em;text-transform:uppercase;font-size:11px;color:var(--mute)}
+.ch svg{display:block;width:100%;height:auto;margin-top:4px;cursor:pointer}
+.ch text{fill:var(--mute);font-family:var(--f-mono);font-size:9px}
+.ch text.v{fill:var(--ink)}
+.ch .b{fill:var(--glow)}
+.ch .b.over{fill:var(--red)}
+.ch .b.part{opacity:.45}
+.ch .b.sel{filter:drop-shadow(0 0 5px var(--glow))}
+.ch .base{stroke:var(--line);stroke-width:1}
+.ch .t{stroke:var(--gold);stroke-width:1;stroke-dasharray:4 3}
+.ch text.t-l{fill:var(--gold)}
+.ch .hit{fill:transparent}
+.ch-cap{font-size:12px;color:var(--mute);min-height:1.4em}
+
 /* tabs */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(5,7,13,.94);border-top:1px solid var(--line);backdrop-filter:blur(8px);z-index:5}
 nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
@@ -245,6 +264,26 @@ body:not(.locked) #login{display:none}
           <div class="chip"><b id="sl-close">—</b><span id="sl-close-l">Close rate</span></div>
         </div>
         <div class="row between" style="margin-top:10px"><span class="sub" id="sl-days"></span><span class="sub" id="sl-month"></span></div>
+      </div>
+
+      <div class="win" id="reportwin" hidden>
+        <div class="win-title"><span class="bang">!</span><span id="rp-title">Week report</span></div>
+        <div class="report">
+          <div class="rank" id="rp-grade">E</div>
+          <div class="grow">
+            <div class="row between"><span class="mono"><span class="gold-big" id="rp-xp">0</span> <span class="sub" id="rp-xpt"></span></span><span class="sub" id="rp-when"></span></div>
+            <div class="bar" style="margin-top:6px"><i id="rp-bar" style="width:0%"></i></div>
+            <div class="sub" id="rp-sub" style="margin-top:4px"></div>
+          </div>
+        </div>
+        <div class="chips six" id="rp-nums"></div>
+        <div class="sub" id="rp-note" style="margin-top:10px" hidden></div>
+      </div>
+
+      <div class="win" id="histwin" hidden>
+        <div class="win-title">History</div>
+        <div class="ch" id="ch-xp"></div>
+        <div class="ch" id="ch-spend"></div>
       </div>
 
       <div class="win">
@@ -331,7 +370,10 @@ body:not(.locked) #login{display:none}
           <label class="f" for="sp-cat">Category<select id="sp-cat"></select></label>
           <label class="quest" for="sp-big" style="border:none;padding:4px 2px"><input type="checkbox" id="sp-big"><span class="box" aria-hidden="true"></span>
             <span class="txt"><b>Big buy</b><small>Comes out of the Big buys pot, not this week's limit</small></span></label>
-          <button class="btn solid" type="submit">Record</button>
+          <div class="two">
+            <button class="btn" type="button" id="sp-zero">Nothing spent today</button>
+            <button class="btn solid" type="submit">Record</button>
+          </div>
         </form>
       </div>
       <div class="win">
@@ -342,6 +384,17 @@ body:not(.locked) #login{display:none}
           <button class="btn solid" type="submit" id="cash-go" style="align-self:flex-end">Cash out</button>
         </form>
         <div id="sp-bigs" style="margin-top:6px"></div>
+      </div>
+      <div class="win" id="debtwin" hidden>
+        <div class="win-title">Debt</div>
+        <div class="row between"><span class="sub" id="dt-note"></span><span class="gold-big mono" id="dt-bal">$0</span></div>
+        <div class="bar gold" style="margin-top:6px"><i id="dt-bar" style="width:0%"></i></div>
+        <div class="sub" id="dt-hint" style="margin-top:8px"></div>
+        <form class="row" id="debtform" style="margin-top:8px">
+          <label class="f grow" for="dt-amt"><span id="dt-l">Paid toward debt</span><input id="dt-amt" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="$ amount"></label>
+          <button class="btn solid" type="submit" style="align-self:flex-end">Paid</button>
+        </form>
+        <div id="dt-list" style="margin-top:6px"></div>
       </div>
       <div class="win">
         <div class="win-title">This week's purchases</div>
@@ -474,6 +527,13 @@ body:not(.locked) #login{display:none}
   // Entries are type "spend" (amount, cat, big). Big buys and fixed categories (bills) never count toward the weekly limit.
   // subscriptions:[{name, amount, per:"week"|"month"|"year", since?, until?}] add their weekly share to every week's total on their own.
   const SPEND = () => config?.spending || null;
+  // debt:{quest, xpPer} ties a main quest (start → 0) to "debt" log entries: each payment lowers its balance and pays 1 XP per xpPer dollars.
+  const DEBT = () => config?.debt || null;
+  const debtQuest = () => (config?.mainQuests||[]).find(m => m.id === DEBT()?.quest) || null;
+  const debtBalance = () => { const m = debtQuest(); return m ? Number(progress.values?.[m.id] ?? m.current ?? m.start) : null; };
+  // The week report grades XP against player.weeklyXpTarget (a realistic week, not a perfect one).
+  const XP_TARGET = () => config?.player?.weeklyXpTarget || 1000;
+  const GRADES = [[1.25,"S"],[1,"A"],[.8,"B"],[.6,"C"],[.4,"D"],[0,"E"]];
   const RANKS = [[70,"S"],[50,"A"],[35,"B"],[20,"C"],[10,"D"],[1,"E"]];
   const TITLES = [[70,"Shadow Monarch"],[50,"National-Level"],[35,"Gate Breaker"],[20,"Rising Hunter"],[10,"Awakened"],[1,"The Weakest Hunter"]];
 
@@ -500,7 +560,7 @@ body:not(.locked) #login{display:none}
   // ---------- state + storage ----------
   // Local-first: every doc is cached on the phone, writes queue in "pending" and flush to Supabase
   // (table public.docs, one row per path, RLS owner-only) whenever there's a session and a connection.
-  let sb = null, session = null, days = {}, config = null, progress = {cleared:{}, values:{}};
+  let sb = null, session = null, days = {}, config = null, progress = {cleared:{}, values:{}}, report = null;
   const LS = {
     get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(_){ return d; } },
     set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_){} },
@@ -519,6 +579,7 @@ body:not(.locked) #login{display:none}
   function applyDocs(){
     const merged = Object.assign({}, cache, pending);
     config = merged["system/config"] || null;
+    report = merged["system/report"] || null;   // {week:"YYYY-MM-DD" (Monday), note}: written by Claude at the Sunday review
     progress = JSON.parse(JSON.stringify(merged["system/progress"] || {}));
     progress.cleared ||= {}; progress.values ||= {}; progress.spent ||= 0; progress.redeemed ||= [];
     const next = {};
@@ -569,6 +630,7 @@ body:not(.locked) #login{display:none}
   // ---------- scoring ----------
   const allDone = (d, list) => list.length > 0 && list.every(q => d?.q?.[q.id]);
   function logXp(e){
+    if (e.type==="debt") return DEBT()?.xpPer > 0 && typeof e.amount==="number" ? Math.floor(e.amount/DEBT().xpPer) : 0;
     const s = SALES(); if (!s) return 0;
     if (e.type==="estimate") return s.estimateXp ?? 10;
     if (e.type==="sale" && typeof e.amount==="number" && s.xpPer > 0) return Math.max(0, Math.floor(e.amount/s.xpPer));
@@ -663,6 +725,40 @@ body:not(.locked) #login{display:none}
   }
   const goldNow = () => Math.floor(totals().xp*GOLD_PER_XP) - (progress.spent||0) + spending().gold;
 
+  function weekStats(mon){
+    const w = {mon, xp:0, full:0, sold:0, sales:0, ests:0, debt:0};
+    for (let i=0;i<7;i++){ const k = addDays(mon, i);
+      w.xp += dayXp(k); if (allDone(days[k], required())) w.full++;
+      for (const e of (days[k]?.entries||[])){
+        if (e.type==="sale"){ w.sales++; w.sold += typeof e.amount==="number" ? e.amount : 0; }
+        else if (e.type==="estimate") w.ests++;
+        else if (e.type==="debt") w.debt += e.amount||0;
+      }
+    }
+    return w;
+  }
+  const firstDay = () => Object.keys(days).sort()[0] || null;
+  // Single-series weekly bars with a dashed target line. Tapping a bar shows its value in the caption.
+  function barChart(el, title, pts, target, fmt, overIsBad){
+    const W = 320, H = 132, top = 14, bot = 18, n = pts.length;
+    const max = Math.max(target||0, ...pts.map(p => p.v), 1) * 1.12;
+    const y = v => top + (H-top-bot) * (1 - v/max), base = y(0), cw = W/n, bw = Math.min(28, cw*0.6);
+    const cap = i => { const p = pts[i]; return `${p.long}: <b class="mono" style="color:var(--ink)">${esc(fmt(p.v))}</b>${p.partial ? " so far" : ""}${target ? ` · target ${esc(fmt(target))}` : ""}`; };
+    let g = `<line class="base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>`;
+    pts.forEach((p, i) => {
+      const x = i*cw + (cw-bw)/2, h = Math.max(p.v > 0 ? 2 : 0, base - y(p.v));
+      const cls = "b" + (overIsBad && target && p.v > target ? " over" : "") + (p.partial ? " part" : "") + (i===n-1 ? " sel" : "");
+      g += `<path class="${cls}" d="M${x},${base} v${-Math.max(0,h-2)} q0,-2 2,-2 h${bw-4} q2,0 2,2 v${Math.max(0,h-2)} z"/>`;
+      g += `<text x="${i*cw+cw/2}" y="${H-4}" text-anchor="middle">${esc(p.label)}</text>`;
+      if (i===n-1 && p.v > 0) g += `<text class="v" x="${i*cw+cw/2}" y="${y(p.v)-4}" text-anchor="middle">${esc(fmt(p.v))}</text>`;
+      g += `<rect class="hit" data-i="${i}" x="${i*cw}" y="0" width="${cw}" height="${H}"><title>${esc(p.long)}: ${esc(fmt(p.v))}</title></rect>`;
+    });
+    if (target) g += `<line class="t" x1="0" x2="${W}" y1="${y(target)}" y2="${y(target)}"/><text class="t-l" x="${W-2}" y="${y(target)-3}" text-anchor="end">${esc(fmt(target))}</text>`;
+    el.innerHTML = `<div class="ch-h">${esc(title)}</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}, last ${n} weeks">${g}</svg><div class="ch-cap">${cap(n-1)}</div>`;
+    el.onclick = e => { const h = e.target.closest(".hit"); if (!h) return; const i = Number(h.dataset.i);
+      el.querySelectorAll(".b").forEach((b, j) => b.classList.toggle("sel", j===i)); el.querySelector(".ch-cap").innerHTML = cap(i); };
+  }
+
   // ---------- render ----------
   function render(){
     const k = today();
@@ -729,6 +825,7 @@ body:not(.locked) #login{display:none}
       <button class="btn tiny${gold>=r.cost?" solid":""}" data-buy="${esc(r.id)}" ${gold>=r.cost?"":"disabled"}>${gold>=r.cost?"Redeem":"Locked"}</button></div>`).join("");
     $("t-spend").hidden = !SPEND();
     if (SPEND()) renderSpend(sp);
+    renderReport(sp); renderDebt();
     const red = (progress.redeemed||[]).slice().reverse().slice(0,10);
     $("redeemed").innerHTML = red.length ? red.map(r => `<div class="entry"><span class="tag">Reward</span><div class="grow">${esc(r.name)}<small>${esc(r.day||"")}</small></div><span class="amt">−${r.cost} G</span></div>`).join("")
       : `<div class="empty">Nothing redeemed yet. Clear quests to earn gold.</div>`;
@@ -804,6 +901,56 @@ body:not(.locked) #login{display:none}
       return `<div class="entry"><span class="tag">${esc(e.type)}</span><div class="grow">${esc(e.text||"")}<small>${esc(e.day)}${extra?" · "+esc(extra):""}</small></div>${amt!==null?`<span class="amt${e.type==="sale"?" pos":e.type==="spend"?" neg":""}">${money(amt)}</span>`:""}
         <button class="btn tiny" type="button" data-logdel="${esc(e.day)}|${e.i}" aria-label="Delete ${esc(e.text || e.type)}">✕</button></div>`;
     }).join("") : `<div class="empty">Nothing recorded yet. Log an estimate, a sale, or a workout above.</div>`;
+  }
+
+  // Shows last week's report, or this week's from Sunday 8 PM on.
+  function renderReport(sp){
+    const first = firstDay(), now = new Date(), cur = mondayOf(today());
+    const mon = now.getDay()===0 && now.getHours() >= 20 ? cur : addDays(cur, -7);
+    const show = !!first && addDays(mon, 6) >= first;
+    $("reportwin").hidden = !show; $("histwin").hidden = !first;
+    if (!first) return;
+    const tgt = XP_TARGET(), lim = SPEND()?.weeklyLimit;
+    if (show){
+      const w = weekStats(mon), pct = w.xp/tgt, grade = GRADES.find(([min]) => pct >= min)[1];
+      const sw = SPEND() ? (sp.weeks.find(x => x.mon===mon) || spendWeek(mon)) : null;
+      $("rp-title").textContent = `Week report · ${shortDate(mon)} to ${shortDate(addDays(mon, 6))}`;
+      $("rp-grade").textContent = grade; $("rp-grade").className = "rank "+grade;
+      $("rp-xp").textContent = w.xp.toLocaleString(); $("rp-xpt").textContent = `/ ${tgt.toLocaleString()} XP`;
+      $("rp-when").textContent = mon===cur ? "Ends at midnight" : "Final";
+      $("rp-bar").style.width = Math.min(100, pct*100)+"%";
+      $("rp-sub").textContent = `${w.full} of 7 days all required quests done${SPEND() ? ` · spending limit ${money(lim)}` : ""}`;
+      const cr = w.ests ? Math.min(100, Math.round(w.sales/w.ests*100))+"%" : "—";
+      const chips = [[money(w.sold), "Sold"], [w.ests, "Estimates"], [cr, "Close rate"]];
+      if (sw) chips.push([money(sw.total), "Spent"]);
+      if (DEBT()) chips.push([money(w.debt), "Debt paid"]);
+      if (sw && !sw.practice && sw.logged) chips.push([`${sw.gold<0?"−":"+"}${Math.abs(sw.gold)}`, "Spend gold"]);
+      $("rp-nums").innerHTML = chips.map(([v, l]) => `<div class="chip"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("");
+      const note = report?.week===mon && report.note;
+      $("rp-note").hidden = !note; $("rp-note").textContent = note || "";
+    }
+    // history: up to 8 weeks, from the first week with data through this week
+    const weeks = []; for (let m = cur; weeks.length < 8 && addDays(m, 6) >= first; m = addDays(m, -7)) weeks.unshift(m);
+    const pt = (m, v) => ({v, label:shortDate(m), long:`Week of ${shortDate(m)}`, partial: m===cur});
+    barChart($("ch-xp"), "XP per week", weeks.map(m => pt(m, weekStats(m).xp)), tgt, v => `${Math.round(v).toLocaleString()} XP`, false);
+    $("ch-spend").hidden = !SPEND();
+    if (SPEND()) barChart($("ch-spend"), "Spending per week", weeks.map(m => pt(m, (sp.weeks.find(x => x.mon===m) || spendWeek(m)).total)), lim, money, true);
+  }
+  function renderDebt(){
+    const m = debtQuest(); $("debtwin").hidden = !m || !SPEND(); if (!m) return;
+    const bal = debtBalance(), start = Number(m.start)||bal, target = Number(m.target)||0;
+    $("dt-bal").textContent = money(bal);
+    $("dt-note").textContent = `${money(Math.max(0, start-bal))} paid of ${money(start-target)}${m.by ? " · by "+m.by : ""}`;
+    $("dt-bar").style.width = Math.max(0, Math.min(100, (start-bal)/((start-target)||1)*100))+"%";
+    $("dt-l").textContent = `Paid toward debt · +1 XP per $${DEBT().xpPer}`;
+    const last = spending().weeks.find(x => x.mon===addDays(mondayOf(today()), -7));
+    const under = last && !last.practice && last.logged ? Math.floor(SPEND().weeklyLimit - last.total) : 0;
+    $("dt-hint").textContent = under > 0 ? `Last week you came in ${money(under)} under budget. Put it on the debt.` : "Log every real payment here. The bar only moves when money moves.";
+    if (under > 0 && !$("dt-amt").value && document.activeElement !== $("dt-amt")) $("dt-amt").placeholder = String(under);
+    const pays = []; for (const k of Object.keys(days).sort().reverse()) for (const e of (days[k].entries||[])) if (e.type==="debt") pays.push({...e, day:k});
+    pays.sort((a,b) => a.day===b.day ? (b.ts||0)-(a.ts||0) : a.day<b.day ? 1 : -1);
+    $("dt-list").innerHTML = pays.slice(0, 5).map(e => `<div class="entry"><span class="tag">Debt</span><div class="grow">${cash(e.amount)} paid<small>${esc(shortDate(e.day))}</small></div>
+      <span class="amt pos">+${logXp(e)} XP</span><button class="btn tiny" type="button" data-del="${esc(e.day)}|${esc(e.ts)}" aria-label="Undo debt payment of ${cash(e.amount)}">✕</button></div>`).join("");
   }
 
   function renderSpend(sp){
@@ -975,6 +1122,7 @@ body:not(.locked) #login{display:none}
     const drop = ticks.filter(id => d.q?.[id] && !still(id));
     if (drop.length) patch.q = Object.assign({}, d.q, Object.fromEntries(drop.map(id => [id, false])));
     saveDay(k, patch);
+    if (gone.type==="debt") restoreDebt(gone);
     toast("Record deleted");
   });
 
@@ -992,6 +1140,28 @@ body:not(.locked) #login{display:none}
     toast(entry.big ? `Big buy recorded · pot <b>${money(after.pot)}</b>`
       : `Spending recorded · <b>${cash(Math.abs(left))}</b> ${left >= 0 ? "left" : "over"}`);
   });
+  $("sp-zero").addEventListener("click", () => {
+    const picked = $("sp-day").value, k = picked && picked <= today() ? picked : today(), d = days[k] || {entries:[]};
+    if ((d.entries||[]).some(x => x.type==="spend")) { toast(`Already have spending on ${esc(shortDate(k))}`); return; }
+    saveDay(k, {entries:(d.entries||[]).concat([{type:"spend", text:"Nothing spent", amount:0, cat:"other", ts:Date.now()}])});
+    toast(`Logged · <b>$0</b> on ${esc(shortDate(k))}`);
+  });
+  function restoreDebt(e){
+    const m = debtQuest(); if (!m || typeof e.amount!=="number") return;
+    progress.values = Object.assign({}, progress.values, {[m.id]: Math.round((debtBalance() + e.amount)*100)/100}); saveProgress();
+  }
+  $("debtform").addEventListener("submit", e => {
+    e.preventDefault();
+    const m = debtQuest(); if (!m) return;
+    const raw = $("dt-amt").value || $("dt-amt").placeholder, amount = Math.round(Number(raw)*100)/100, bal = debtBalance();
+    if (!(amount > 0) || amount > bal) { $("dt-amt").focus(); if (amount > bal) toast(`Balance is only <b>${money(bal)}</b>`); return; }
+    const before = totals().xp, k = today(), d = days[k] || {entries:[]};
+    progress.values = Object.assign({}, progress.values, {[m.id]: Math.round((bal - amount)*100)/100});
+    saveDay(k, {entries:(d.entries||[]).concat([{type:"debt", text:"Debt payment", amount, ts:Date.now()}])});
+    saveProgress();
+    const after = totals().xp; $("dt-amt").value = "";
+    toast(levelFromXp(after) > levelFromXp(before) ? `LEVEL UP · <b>LV ${levelFromXp(after)}</b>` : `Debt down to ${money(debtBalance())} · <b>+${after-before} XP</b>`);
+  });
   $("cashform").addEventListener("submit", e => {
     e.preventDefault();
     const amount = Math.floor(Number($("cash-amt").value)), pot = spending().pot;
@@ -1005,10 +1175,12 @@ body:not(.locked) #login{display:none}
   $("v-spend").addEventListener("click", e => {
     const b = e.target.closest("[data-del]"); if (!b) return;
     const [k, ts] = b.dataset.del.split("|"), d = days[k]; if (!d) return;
-    if (!confirm(b.getAttribute("aria-label").startsWith("Undo") ? "Undo this cash-out? The money goes back in the pot." : "Delete this purchase?")) return;
-    const gone = (d.entries||[]).find(x => (x.type==="spend" || x.type==="cashout") && String(x.ts)===ts);
+    const gone = (d.entries||[]).find(x => ["spend","cashout","debt"].includes(x.type) && String(x.ts)===ts); if (!gone) return;
+    if (!confirm(gone.type==="cashout" ? "Undo this cash-out? The money goes back in the pot."
+      : gone.type==="debt" ? "Undo this debt payment? The balance goes back up." : "Delete this purchase?")) return;
     saveDay(k, {entries:(d.entries||[]).filter(x => x !== gone)});
-    toast(gone?.type==="cashout" ? `Cash-out undone · <b>−${(gone.gold||0).toLocaleString()} G</b>` : "Purchase deleted");
+    if (gone.type==="debt") restoreDebt(gone);
+    toast(gone.type==="cashout" ? `Cash-out undone · <b>−${(gone.gold||0).toLocaleString()} G</b>` : gone.type==="debt" ? "Debt payment undone" : "Purchase deleted");
   });
 
   // ---------- auth ----------
