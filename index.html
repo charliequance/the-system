@@ -629,7 +629,7 @@ body:not(.locked) #login{display:none}
     return w;
   }
   // Each week's (limit − spent) × goldPerDollar is shown live and locks into gold when Sunday ends; a week with nothing logged scores nothing.
-  // The pot gains bigPerWeek every Monday from `since`; a big buy past what's in the pot costs gold right away.
+  // The pot gains bigPerWeek every Monday from `since`; a big buy past what's in it takes the pot negative until later Mondays pay it back.
   function spending(){
     const P = SPEND(), cur = mondayOf(today());
     if (!P) return {gold:0, pot:0, weeks:[], cur:null};
@@ -638,7 +638,6 @@ body:not(.locked) #login{display:none}
     for (let mon = mondayOf(P.since || today()); mon <= cur; mon = addDays(mon, 7)){
       const w = spendWeek(mon);
       pot += P.bigPerWeek || 0; pot -= w.big;
-      if (pot < 0){ w.potHit = Math.ceil(-pot*rate); gold -= w.potHit; pot = 0; }
       w.practice = mon < scoreFrom;
       w.gold = Math.floor(((P.weeklyLimit||0) - w.total) * rate);
       if (mon < cur && !w.practice && w.logged) gold += w.gold;
@@ -820,8 +819,9 @@ body:not(.locked) #login{display:none}
     const row = e => `<div class="entry"><span class="tag">${esc(e.big ? "Big buy" : catName(e.cat))}</span><div class="grow">${esc(e.text || "")}<small>${esc(shortDate(e.day))}</small></div>
       <span class="amt neg">${cash(e.amount)}</span><button class="btn tiny" type="button" data-del="${esc(e.day)}|${esc(e.ts)}" aria-label="Delete ${esc(e.text || "purchase")}">✕</button></div>`;
     const byNewest = (a,b) => a.day===b.day ? (b.ts||0)-(a.ts||0) : a.day<b.day ? 1 : -1;
-    $("sp-pot").textContent = money(sp.pot);
-    $("sp-pot-note").textContent = `+${money(P.bigPerWeek||0)} every Monday, unused money rolls over`;
+    $("sp-pot").textContent = money(sp.pot); $("sp-pot").classList.toggle("neg", sp.pot < 0);
+    $("sp-pot-note").textContent = sp.pot < 0 ? `In the minus. +${money(P.bigPerWeek||0)} every Monday pays it back`
+      : `+${money(P.bigPerWeek||0)} every Monday, unused money rolls over`;
     const bigs = sp.weeks.flatMap(x => x.list.filter(e => e.big)).sort(byNewest).slice(0, 5);
     $("sp-bigs").innerHTML = bigs.length ? bigs.map(row).join("") : `<div class="empty">No big buys yet. Tick "Big buy" when you log one.</div>`;
     const mine = w.list.slice().sort(byNewest);
@@ -831,7 +831,7 @@ body:not(.locked) #login{display:none}
     $("sp-weeks").innerHTML = past.length ? past.map(x => {
       const res = x.practice ? `<span class="sub">Practice</span>` : !x.logged ? `<span class="sub">Not logged</span>`
         : `<span class="mono gold-h${x.gold<0?" neg":""}">${x.gold<0?"−":"+"}${Math.abs(x.gold).toLocaleString()} G</span>`;
-      const notes = [`${money(x.total)} of ${money(lim)}`, x.big ? `big buys ${money(x.big)}` : "", x.potHit ? `pot overdrawn −${x.potHit} G` : ""].filter(Boolean).join(" · ");
+      const notes = [`${money(x.total)} of ${money(lim)}`, x.big ? `big buys ${money(x.big)}` : ""].filter(Boolean).join(" · ");
       return `<div class="entry"><div class="grow">${esc(shortDate(x.mon))} to ${esc(shortDate(addDays(x.mon, 6)))}<small>${esc(notes)}</small></div>${res}</div>`;
     }).join("") : `<div class="empty">Finished weeks show here with the gold they earned or cost.</div>`;
   }
@@ -945,13 +945,11 @@ body:not(.locked) #login{display:none}
     const picked = $("sp-day").value, k = picked && picked <= today() ? picked : today();
     const entry = {type:"spend", text:$("sp-what").value.trim(), amount, cat:$("sp-cat").value, ts:Date.now()};
     if ($("sp-big").checked) entry.big = true;
-    const before = spending().gold;
     const d = days[k] || {entries:[]};
     saveDay(k, {entries:(d.entries||[]).concat([entry])});
-    const after = spending(), lost = before - after.gold, lim = SPEND()?.weeklyLimit || 0, left = lim - after.cur.total;
+    const after = spending(), lim = SPEND()?.weeklyLimit || 0, left = lim - after.cur.total;
     $("sp-amt").value = ""; $("sp-what").value = ""; $("sp-big").checked = false; $("sp-day").value = today();
-    toast(lost > 0 ? `Pot overdrawn · <b>−${lost} G</b>`
-      : entry.big ? `Big buy recorded · pot <b>${money(after.pot)}</b>`
+    toast(entry.big ? `Big buy recorded · pot <b>${money(after.pot)}</b>`
       : `Spending recorded · <b>${cash(Math.abs(left))}</b> ${left >= 0 ? "left" : "over"}`);
   });
   $("v-spend").addEventListener("click", e => {
