@@ -566,7 +566,9 @@ body:not(.locked) #login{display:none}
   ];
   const stats = () => (config?.stats?.length ? config.stats : STATS_DEFAULT);
   // Optional daily quests (optional:true) pay XP but never count toward the all-clear bonus or the streak.
-  const required = () => daily().filter(q => !q.optional);
+  // A quest with since:"YYYY-MM-DD" only exists from that day on, so adding one never takes back past days' bonus XP or streaks.
+  const live = (q, k) => !q.since || !k || k >= q.since;
+  const required = k => daily().filter(q => !q.optional && live(q, k));
   // The sales scoreboard and sales XP switch on when system/config has sales:{weeklyTarget, closeTarget, xpPer, estimateXp}.
   const SALES = () => config?.sales || null;
   // The Spend tab switches on when system/config has spending:{weeklyLimit, goldPerDollar, since, scoreFrom, bigPerWeek, categories, caps}.
@@ -596,7 +598,7 @@ body:not(.locked) #login{display:none}
   const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate()+n); return keyOf(d); };
   const mondayOf = k => addDays(k, -((parseKey(k).getDay()+6)%7));
   const shortDate = k => parseKey(k).toLocaleDateString("en-CA",{month:"short",day:"numeric"});
-  const questsFor = k => parseKey(k).getDay()===0 ? daily().concat(sunday()) : daily();
+  const questsFor = k => (parseKey(k).getDay()===0 ? daily().concat(sunday()) : daily()).filter(q => live(q, k));
   // XP to reach level L is base·(L−1)^power. config.player.levelCurve retunes the pace; the fallback is the original 40·(L−1)².
   const curve = () => ({base:40, power:2, ...(config?.player?.levelCurve||{})});
   const levelFromXp = xp => { const c = curve(); return Math.floor(Math.pow(Math.max(0,xp)/c.base, 1/c.power) + 1e-9)+1; };
@@ -664,6 +666,7 @@ body:not(.locked) #login{display:none}
     cache = {}; for (const r of data) cache[r.path] = r.data;
     LS.set("sys-cache", cache);
     applyDocs();
+    whoopTicks();
     flush();
   }
 
@@ -690,7 +693,7 @@ body:not(.locked) #login{display:none}
     const d = days[k]; if (!d) return 0;
     let xp = 0;
     for (const q of allQuestsFor(k)) if (d.q && d.q[q.id]) xp += q.xp;
-    if (allDone(d, required())) xp += ALL_BONUS;
+    if (allDone(d, required(k))) xp += ALL_BONUS;
     for (const e of (d.entries||[])) xp += logXp(e);
     return xp;
   }
@@ -709,7 +712,7 @@ body:not(.locked) #login{display:none}
   }
   function streak(){
     let s = 0; let d = new Date();
-    const full = k => allDone(days[k], required());
+    const full = k => allDone(days[k], required(k));
     if (!full(keyOf(d))) d.setDate(d.getDate()-1);
     while (full(keyOf(d))) { s++; d.setDate(d.getDate()-1); }
     return s;
@@ -778,7 +781,7 @@ body:not(.locked) #login{display:none}
   function weekStats(mon){
     const w = {mon, xp:0, full:0, sold:0, sales:0, ests:0, debt:0};
     for (let i=0;i<7;i++){ const k = addDays(mon, i);
-      w.xp += dayXp(k); if (allDone(days[k], required())) w.full++;
+      w.xp += dayXp(k); if (allDone(days[k], required(k))) w.full++;
       for (const e of (days[k]?.entries||[])){
         if (e.type==="sale"){ w.sales++; w.sold += typeof e.amount==="number" ? e.amount : 0; }
         else if (e.type==="estimate") w.ests++;
@@ -858,7 +861,8 @@ body:not(.locked) #login{display:none}
       return `${head}<label class="quest${on?" done":""}${q.surprise?" surprise":""}" for="q-${esc(q.id)}">
         <input type="checkbox" id="q-${esc(q.id)}" data-q="${esc(q.id)}" ${on?"checked":""}>
         <span class="box" aria-hidden="true"></span>
-        <span class="txt"><b>${esc(q.name)}</b><small>${esc(q.hint)} · ${esc(q.stat)}</small></span>
+        <span class="txt"><b>${esc(q.name)}</b><small>${esc(q.hint)} · ${esc(q.stat)}${q.whoop && whoop[k]?.sleep?.bed
+          ? ` · Whoop: ${q.whoop.bedBy ? "in bed " + clock12(whoop[k].sleep.bed) : "up " + clock12(whoop[k].sleep.wake)}` : ""}</small></span>
         <span class="xp">+${q.xp} XP</span></label>`;
     }).join("");
     const urgent = (config?.gates||[]).filter(g => !progress.cleared?.[g.id] && daysBetween(k,g.date)>=0 && daysBetween(k,g.date)<=3).sort((a,b)=>a.date<b.date?-1:1);
@@ -885,7 +889,7 @@ body:not(.locked) #login{display:none}
     $("in-weight-l").hidden = p.trackWeight === false;
     $("in-protein-l").hidden = p.trackProtein === false;
     $("inputs").hidden = p.trackWeight === false && p.trackProtein === false;
-    const done = allDone(d, required());
+    const done = allDone(d, required(k));
     const hr = new Date().getHours();
     $("questwarn").innerHTML = done
       ? `<div class="reward">Daily quest complete · Reward: +${ALL_BONUS} bonus XP</div>`
@@ -895,7 +899,7 @@ body:not(.locked) #login{display:none}
     const start = new Date(); start.setDate(start.getDate()-6);
     let wk = "";
     for (let i=0;i<7;i++){ const dd = new Date(start); dd.setDate(start.getDate()+i); const kk = keyOf(dd);
-      const req = required(), n = req.filter(q => days[kk]?.q?.[q.id]).length;
+      const req = required(kk), n = req.filter(q => days[kk]?.q?.[q.id]).length;
       const cls = n===req.length ? "full" : n ? "part" : "";
       wk += `<div><div class="d">${"SMTWTFS"[dd.getDay()]}</div><div class="c ${cls}${kk===k?" today":""}">${n}/${req.length}</div></div>`;
     }
@@ -1060,6 +1064,29 @@ body:not(.locked) #login{display:none}
     $("wh-note").innerHTML = notes.join(" ");
   }
 
+  // A daily quest with whoop:{bedBy:"HH:MM"} or whoop:{upBy:"HH:MM"} ticks itself from that morning's Whoop sleep:
+  // in bed by bedBy last night, awake by upBy. It only fills a box that was never touched, so unticking by hand sticks,
+  // and it runs right after a fresh pull so it never writes over newer days from the server. A miss stays unticked.
+  function whoopPass(q, k){
+    const s = whoop[k]?.sleep, w = q.whoop || {};
+    if (!s?.bed || !s?.wake) return null;
+    if (w.bedBy) return s.bed <= (w.bedBy < "12:00" ? k : addDays(k, -1)) + " " + w.bedBy;
+    if (w.upBy) return s.wake <= k + " " + w.upBy;
+    return null;
+  }
+  function whoopTicks(){
+    const qs = daily().filter(q => q.whoop), k = today(), got = [];
+    if (!qs.length) return;
+    for (let i = 6; i >= 0; i--){
+      const kk = addDays(k, -i), d = days[kk] || {};
+      const add = qs.filter(q => live(q, kk) && d.q?.[q.id] === undefined && whoopPass(q, kk) === true);
+      if (!add.length) continue;
+      saveDay(kk, {q: Object.assign({}, d.q, Object.fromEntries(add.map(q => [q.id, true])))});
+      if (kk === k) got.push(...add);
+    }
+    if (got.length) toast(`Whoop cleared · ${got.map(q => esc(q.name)).join(" + ")} · <b>+${got.reduce((t, q) => t + q.xp, 0)} XP</b>`);
+  }
+
   function renderSpend(sp){
     const P = SPEND(), k = today(), w = sp.cur, lim = P.weeklyLimit || 0, over = w.total > lim;
     const cats = P.categories || [];
@@ -1140,13 +1167,13 @@ body:not(.locked) #login{display:none}
     const id = e.target.dataset.q; if (!id) return;
     const k = today(); const d = days[k] || {q:{}};
     const q = Object.assign({}, d.q, {[id]: e.target.checked});
-    const before = allDone(d, required());
+    const before = allDone(d, required(k));
     const lvBefore = levelFromXp(totals().xp);
     saveDay(k, {q});
     const lvAfter = levelFromXp(totals().xp);
     const qq = allQuestsFor(k).find(x=>x.id===id);
     if (e.target.checked){
-      const after = allDone({q}, required());
+      const after = allDone({q}, required(k));
       if (lvAfter > lvBefore) toast(`LEVEL UP · <b>LV ${lvAfter}</b> · Check the shop`);
       else toast(after && !before ? `Daily quest complete · <b>+${qq.xp+ALL_BONUS} XP</b>` : `${qq.surprise?"Surprise quest":"Quest"} cleared · <b>+${qq.xp} XP</b> · ${qq.stat} up`);
     }
