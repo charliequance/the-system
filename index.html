@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Gates / Spend / Shop / Log. Single dark theme by design. */
+/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window. Single dark theme by design. */
 :root{
   --void:#05070d;        /* page ground */
   --panel:#0a1322;       /* window fill */
@@ -191,6 +191,25 @@ button{font:inherit}
 .ch .hit{fill:transparent}
 .ch-cap{font-size:12px;color:var(--mute);min-height:1.4em}
 
+/* condition (Whoop, read-only) */
+.win-title .wh-day{margin-left:auto;color:var(--mute);text-shadow:none;letter-spacing:.1em;font-size:11px}
+.cond{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.rec{width:74px;height:74px;display:grid;place-items:center;border:2px solid var(--line);border-radius:50%;font-family:var(--f-mono);font-weight:600;font-size:21px;color:var(--mute);box-shadow:0 0 18px var(--glow-soft) inset}
+.rec.g,.week .c.g{color:var(--green);border-color:var(--green)}
+.rec.y,.week .c.y{color:var(--gold);border-color:var(--gold)}
+.rec.r,.week .c.r{color:var(--red);border-color:var(--red)}
+.rec.g{text-shadow:0 0 12px rgba(77,255,176,.55)}
+.rec.y{text-shadow:0 0 12px rgba(255,198,92,.55)}
+.rec.r{text-shadow:0 0 12px rgba(255,77,106,.55)}
+.cond-h{font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.04em}
+.cond-l{font-family:var(--f-display);letter-spacing:.12em;text-transform:uppercase;font-size:12px;color:var(--mute)}
+.meter{margin-top:12px}
+.meter .sub{margin-top:4px}
+.week button.c{width:100%;padding:0;cursor:pointer;color:var(--ink)}
+.week button.c:disabled{cursor:default;color:var(--mute);opacity:.6}
+.week .c.sel{outline:1px solid var(--glow);outline-offset:2px}
+.week button.c:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
 /* tabs */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(5,7,13,.94);border-top:1px solid var(--line);backdrop-filter:blur(8px);z-index:5}
 nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
@@ -252,6 +271,33 @@ body:not(.locked) #login{display:none}
           <div class="sub mono" id="xptext">0 / 0 XP</div>
         </div>
         <div class="bar" style="margin-top:6px"><i id="xpbar" style="width:0%"></i></div>
+      </div>
+
+      <div class="win" id="whoopwin" hidden>
+        <div class="win-title"><span class="bang">!</span>Condition<span class="wh-day" id="wh-day"></span></div>
+        <div class="cond">
+          <div class="rec" id="wh-rec">—</div>
+          <div class="grow">
+            <div class="cond-h" id="wh-rec-l">Recovery</div>
+            <dl class="kv" style="margin-top:4px">
+              <dt>HRV</dt><dd class="mono" id="wh-hrv">—</dd>
+              <dt>Resting HR</dt><dd class="mono" id="wh-rhr">—</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="meter">
+          <div class="row between"><span class="cond-l">Sleep</span><span class="mono" id="wh-sleep">—</span></div>
+          <div class="bar thin"><i id="wh-sleep-bar" style="width:0%"></i></div>
+          <div class="sub" id="wh-sleep-sub"></div>
+        </div>
+        <div class="meter">
+          <div class="row between"><span class="cond-l">Strain</span><span class="mono" id="wh-strain">—</span></div>
+          <div class="bar thin"><i id="wh-strain-bar" style="width:0%"></i></div>
+          <div class="sub" id="wh-strain-sub"></div>
+        </div>
+        <div class="ch-h" style="margin-top:14px">Recovery · last 7 days</div>
+        <div class="week" id="wh-week" style="margin-top:6px"></div>
+        <div class="sub" id="wh-note" style="margin-top:10px"></div>
       </div>
 
       <div class="win" id="saleswin" hidden>
@@ -561,6 +607,7 @@ body:not(.locked) #login{display:none}
   // Local-first: every doc is cached on the phone, writes queue in "pending" and flush to Supabase
   // (table public.docs, one row per path, RLS owner-only) whenever there's a session and a connection.
   let sb = null, session = null, days = {}, config = null, progress = {cleared:{}, values:{}}, report = null;
+  let whoop = {}, whoopMeta = null;   // whoop/YYYY-MM-DD rows + whoop/meta, written by the sync on Charlie's Mac
   const LS = {
     get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(_){ return d; } },
     set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_){} },
@@ -582,9 +629,12 @@ body:not(.locked) #login{display:none}
     report = merged["system/report"] || null;   // {week:"YYYY-MM-DD" (Monday), note}: written by Claude at the Sunday review
     progress = JSON.parse(JSON.stringify(merged["system/progress"] || {}));
     progress.cleared ||= {}; progress.values ||= {}; progress.spent ||= 0; progress.redeemed ||= [];
-    const next = {};
-    for (const [path, data] of Object.entries(merged)) if (path.startsWith("days/")) next[path.slice(5)] = JSON.parse(JSON.stringify(data));
-    days = next;
+    const next = {}, wh = {};
+    for (const [path, data] of Object.entries(merged)){
+      if (path.startsWith("days/")) next[path.slice(5)] = JSON.parse(JSON.stringify(data));
+      else if (path.startsWith("whoop/") && path !== "whoop/meta") wh[path.slice(6)] = data;
+    }
+    days = next; whoop = wh; whoopMeta = merged["whoop/meta"] || null;
     render();
   }
   function write(path, body){
@@ -825,7 +875,7 @@ body:not(.locked) #login{display:none}
       <button class="btn tiny${gold>=r.cost?" solid":""}" data-buy="${esc(r.id)}" ${gold>=r.cost?"":"disabled"}>${gold>=r.cost?"Redeem":"Locked"}</button></div>`).join("");
     $("t-spend").hidden = !SPEND();
     if (SPEND()) renderSpend(sp);
-    renderReport(sp); renderDebt();
+    renderReport(sp); renderDebt(); renderWhoop();
     const red = (progress.redeemed||[]).slice().reverse().slice(0,10);
     $("redeemed").innerHTML = red.length ? red.map(r => `<div class="entry"><span class="tag">Reward</span><div class="grow">${esc(r.name)}<small>${esc(r.day||"")}</small></div><span class="amt">−${r.cost} G</span></div>`).join("")
       : `<div class="empty">Nothing redeemed yet. Clear quests to earn gold.</div>`;
@@ -953,6 +1003,63 @@ body:not(.locked) #login{display:none}
       <span class="amt pos">+${logXp(e)} XP</span><button class="btn tiny" type="button" data-del="${esc(e.day)}|${esc(e.ts)}" aria-label="Undo debt payment of ${cash(e.amount)}">✕</button></div>`).join("");
   }
 
+  // ---------- Whoop (read-only) ----------
+  // A sync on Charlie's Mac writes whoop/YYYY-MM-DD ({recovery, sleep, naps, strain, workouts}) and whoop/meta every 30 minutes.
+  // The app only reads them. A Whoop day is the day he woke into: last night's sleep, this morning's recovery, then that day's strain.
+  let whSel = null;   // day tapped in the 7-day strip; null shows today, or the latest day with data
+  const recCls = p => typeof p!=="number" ? "" : p >= 67 ? "g" : p >= 34 ? "y" : "r";
+  const hm = h => { if (typeof h!=="number") return "—"; const m = Math.round(h*60); return m < 60 ? `${m}m` : `${Math.floor(m/60)}h ${pad(m%60)}m`; };
+  const clock12 = s => { if (!s) return "?"; const [h, m] = s.slice(11, 16).split(":").map(Number); return `${h%12||12}:${pad(m)} ${h<12?"AM":"PM"}`; };
+  const whHas = d => !!d && !!(d.recovery || d.sleep || d.strain || d.workouts?.length);
+  const ago = iso => { const m = Math.round((Date.now() - new Date(iso))/60000);
+    return m < 2 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m/60)} h ago` : `${Math.round(m/1440)} days ago`; };
+  function renderWhoop(){
+    const keys = Object.keys(whoop).filter(x => whHas(whoop[x])).sort();
+    $("whoopwin").hidden = !keys.length; if (!keys.length) return;
+    const k = today(), latest = keys[keys.length-1];
+    const sel = whSel && whHas(whoop[whSel]) ? whSel : whHas(whoop[k]) ? k : latest;
+    const d = whoop[sel], r = d.recovery, s = d.sleep, c = d.strain;
+    $("wh-day").textContent = sel===k ? "Today" : sel===addDays(k,-1) ? "Yesterday" : parseKey(sel).toLocaleDateString("en-CA",{weekday:"short", month:"short", day:"numeric"});
+
+    const scored = r?.state==="SCORED" && typeof r.score_pct==="number";
+    $("wh-rec").textContent = scored ? r.score_pct+"%" : "—";
+    $("wh-rec").className = "rec "+(scored ? recCls(r.score_pct) : "");
+    $("wh-rec-l").textContent = (scored ? (r.score_pct >= 67 ? "Recovered · push it" : r.score_pct >= 34 ? "Steady · train as planned" : "Low · go lighter today")
+      : r?.state==="PENDING_SCORE" ? "Recovery still scoring" : r ? "Recovery couldn't be scored" : "No recovery yet") + (scored && r.calibrating ? " · calibrating" : "");
+    $("wh-hrv").textContent = scored && typeof r.hrv_ms==="number" ? `${Math.round(r.hrv_ms)} ms` : "—";
+    $("wh-rhr").textContent = scored && typeof r.resting_hr==="number" ? `${r.resting_hr} bpm` : "—";
+
+    const sOk = typeof s?.asleep_h==="number";
+    $("wh-sleep").innerHTML = sOk ? `${hm(s.asleep_h)}${s.needed_h ? ` <span class="sub">of ${hm(s.needed_h)}</span>` : ""}` : "—";
+    $("wh-sleep-bar").style.width = sOk && s.needed_h ? Math.min(100, s.asleep_h/s.needed_h*100)+"%" : "0%";
+    const naps = (d.naps||[]).filter(n => typeof n.asleep_h==="number").map(n => `nap ${hm(n.asleep_h)}`);
+    $("wh-sleep-sub").textContent = (s ? [typeof s.performance_pct==="number" ? `${s.performance_pct}% performance` : "", `${clock12(s.bed)} to ${clock12(s.wake)}`] : ["No night's sleep recorded"])
+      .concat(naps).filter(Boolean).join(" · ");
+
+    const cOk = typeof c?.score==="number";
+    $("wh-strain").innerHTML = cOk ? `${c.score.toFixed(1)} <span class="sub">/ 21</span>` : "—";
+    $("wh-strain-bar").style.width = cOk ? Math.min(100, c.score/21*100)+"%" : "0%";
+    const wos = (d.workouts||[]).map(w => [String(w.sport||"Workout").replace(/^./, x => x.toUpperCase()), typeof w.minutes==="number" ? `${w.minutes} min` : "",
+      typeof w.strain==="number" ? `strain ${w.strain.toFixed(1)}` : ""].filter(Boolean).join(", "));
+    $("wh-strain-sub").textContent = [cOk && typeof c.calories==="number" ? `${c.calories.toLocaleString()} cal${c.in_progress ? " so far" : ""}` : ""].concat(wos).filter(Boolean).join(" · ");
+
+    let wk = "";
+    for (let i=6;i>=0;i--){
+      const kk = addDays(k, -i), dd = whoop[kk], rr = dd?.recovery, p = rr?.state==="SCORED" && typeof rr.score_pct==="number" ? rr.score_pct : null, has = whHas(dd);
+      const what = p!==null ? `recovery ${p}%` : has ? "no recovery score" : "no Whoop data";
+      wk += `<div><div class="d">${"SMTWTFS"[parseKey(kk).getDay()]}</div><button type="button" class="c ${recCls(p)}${kk===sel?" sel":""}" data-whday="${kk}" ${has?"":"disabled"} aria-label="${esc(shortDate(kk))}: ${what}">${p!==null ? p : has ? "·" : "–"}</button></div>`;
+    }
+    $("wh-week").innerHTML = wk;
+
+    const m = whoopMeta || {}, notes = [];
+    const why = String(m.error || "").split(/ Run: /)[0].replace(/\.$/, "");
+    if (m.ok===false) notes.push(`<span class="neg">Whoop sync stopped${why ? `: ${esc(why)}` : ""}.</span> On your Mac, double-click whoop-setup in the-system-private.`);
+    if (latest < addDays(k,-1)) notes.push(`No Whoop data since ${esc(shortDate(latest))}. Wear the strap and open the Whoop app to sync.`);
+    else if (!scored && m.latest_recovery && m.latest_recovery < addDays(k,-1)) notes.push(`Last recovery score was ${esc(shortDate(m.latest_recovery))}. Sleep with the strap on to get one tomorrow.`);
+    if (m.synced_at) notes.push(`Synced ${esc(ago(m.synced_at))}${Date.now() - new Date(m.synced_at) > 6*3600e3 ? ". It syncs while your Mac is awake" : ""}.`);
+    $("wh-note").innerHTML = notes.join(" ");
+  }
+
   function renderSpend(sp){
     const P = SPEND(), k = today(), w = sp.cur, lim = P.weeklyLimit || 0, over = w.total > lim;
     const cats = P.categories || [];
@@ -1024,6 +1131,10 @@ body:not(.locked) #login{display:none}
     document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== "v-"+b.dataset.v);
     try { localStorage.setItem("sys-tab", b.dataset.v); } catch(_){}
     window.scrollTo(0,0);
+  });
+  $("wh-week").addEventListener("click", e => {
+    const b = e.target.closest("[data-whday]"); if (!b || b.disabled) return;
+    whSel = b.dataset.whday; renderWhoop();
   });
   $("questlist").addEventListener("change", e => {
     const id = e.target.dataset.q; if (!id) return;

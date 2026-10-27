@@ -7,3 +7,5 @@ A Solo Leveling-style daily quest tracker. Installable web app (PWA), data in Su
 - `sw.js`: offline shell (bump `VERSION` on every change so phones pick it up)
 
 Quests, main quests, gates, rewards and sales targets live in the owner's private `system/config` row, not in this repo.
+
+Whoop numbers arrive as `whoop/YYYY-MM-DD` and `whoop/meta` rows, written every 30 minutes by a sync on the owner's Mac. The app only reads them.
