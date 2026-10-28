@@ -582,8 +582,10 @@ body:not(.locked) #login{display:none}
   // The week report grades XP against player.weeklyXpTarget (a realistic week, not a perfect one).
   const XP_TARGET = () => config?.player?.weeklyXpTarget || 1000;
   const GRADES = [[1.25,"S"],[1,"A"],[.8,"B"],[.6,"C"],[.4,"D"],[0,"E"]];
-  const RANKS = [[70,"S"],[50,"A"],[35,"B"],[20,"C"],[10,"D"],[1,"E"]];
-  const TITLES = [[70,"Shadow Monarch"],[50,"National-Level"],[35,"Gate Breaker"],[20,"Rising Hunter"],[10,"Awakened"],[1,"The Weakest Hunter"]];
+  // The level each rank starts at. config.player.rankLevels {D, C, B, A, S} moves them, so a retuned level curve can keep the ranks on the same dates.
+  const RANKS = () => { const r = {D:10, C:20, B:35, A:50, S:70, ...(config?.player?.rankLevels||{})};
+    return [[r.S,"S"],[r.A,"A"],[r.B,"B"],[r.C,"C"],[r.D,"D"],[1,"E"]]; };
+  const TITLES = {S:"Shadow Monarch", A:"National-Level", B:"Gate Breaker", C:"Rising Hunter", D:"Awakened", E:"The Weakest Hunter"};
 
   // ---------- helpers ----------
   const $ = id => document.getElementById(id);
@@ -820,11 +822,11 @@ body:not(.locked) #login{display:none}
     $("lvl").textContent = L;
     $("xptext").textContent = `${(xp-lo).toLocaleString()} / ${(hi-lo).toLocaleString()} XP`;
     $("xpbar").style.width = Math.min(100, (xp-lo)/(hi-lo)*100)+"%";
-    const r = pick(RANKS, L); $("rank").textContent = r; $("rank").className = "rank "+r;
+    const r = pick(RANKS(), L); $("rank").textContent = r; $("rank").className = "rank "+r;
     const p = config?.player || {};
     $("pname").textContent = (p.name || "Player").toUpperCase();
     $("pjob").textContent = p.job || "—";
-    $("ptitle").textContent = pick(TITLES, L);
+    $("ptitle").textContent = TITLES[r];
     $("stats").innerHTML = stats().map(s => `<div class="stat"><span>${esc(s.k)}<em>${esc(s.what)}</em></span><b>${st[s.k]}</b></div>`).join("");
     $("s-streak").textContent = streak();
     const since = p.cleanSince;
