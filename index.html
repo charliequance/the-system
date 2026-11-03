@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Gym / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window. Single dark theme by design. */
+/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Gym / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window; Quests ends with the Body window. Single dark theme by design. */
 :root{
   --void:#05070d;        /* page ground */
   --panel:#0a1322;       /* window fill */
@@ -375,12 +375,43 @@ body:not(.locked) #login{display:none}
         </div>
         <div class="timer">Time remaining <b id="remain">--:--</b></div>
         <div id="emergency"></div>
+        <div id="shotnote"></div>
         <div id="questwarn"></div>
       </div>
 
       <div class="win">
         <div class="win-title">This week</div>
         <div class="week" id="week"></div>
+      </div>
+
+      <div class="win" id="bodywin" hidden>
+        <div class="win-title"><span class="bang">!</span>Body</div>
+        <div id="bd-shotw">
+          <div class="row between"><span class="cond-l" id="sh-name">Shots</span><span class="mono" id="sh-status">—</span></div>
+          <div class="sub" id="sh-sub"></div>
+          <form class="row" id="shotform" style="margin-top:8px">
+            <label class="f grow" for="sh-dose"><span id="sh-dose-l">Dose (mg)</span><input id="sh-dose" type="number" inputmode="decimal" step="0.05" min="0"></label>
+            <label class="f grow" for="sh-day">Day<input id="sh-day" type="date"></label>
+            <button class="btn solid" type="submit" style="align-self:flex-end">Log shot</button>
+          </form>
+          <div id="sh-list" style="margin-top:4px"></div>
+        </div>
+        <div class="meter">
+          <div class="row between"><span class="cond-l">Weight</span><span class="mono" id="bd-w">—</span></div>
+          <div class="sub" id="bd-w-sub"></div>
+          <div class="ch" id="bd-chart"></div>
+        </div>
+        <div class="meter">
+          <div class="row between"><span class="cond-l" id="bd-waist-l">Waist</span><span class="mono" id="bd-waist">—</span></div>
+          <div class="sub" id="bd-waist-sub"></div>
+          <form class="row" id="waistform" style="margin-top:8px">
+            <label class="f grow" for="bd-waist-in">This week's waist (in)<input id="bd-waist-in" type="number" inputmode="decimal" step="0.1" min="10" placeholder="34.5"></label>
+            <button class="btn solid" type="submit" style="align-self:flex-end">Record</button>
+          </form>
+        </div>
+        <div class="meter" id="bd-crea-row">
+          <div class="row between"><span class="cond-l">Creatine</span><span class="mono" id="bd-crea">—</span></div>
+        </div>
       </div>
     </div>
   </section>
@@ -623,6 +654,10 @@ body:not(.locked) #login{display:none}
   // Today's ticks and top sets sit on the day doc as gym:{session, done:{exId:true}, lifts:{exId:{w, r}}} until Finish,
   // which adds a "workout" entry (session, done, lifts) and ticks "train", the same as recording a workout in the Log.
   const GYM = () => config?.gym?.days?.length ? config.gym : null;
+  // The Body window switches on when system/config has body:{startWeight, waistEvery, shots:{name, dose, unit, every, until}}.
+  // Weigh-ins are day doc `weight` (the Quests input), waist is day doc `waist`, shots are "shot" entries (dose, unit), creatine is quest "crea".
+  // body/history holds what came over from the Recomp Log ({weights, waist, crea, shots}); a day doc wins over it on the same day.
+  const BODY = () => config?.body || null;
   // The week report grades XP against player.weeklyXpTarget (a realistic week, not a perfect one).
   const XP_TARGET = () => config?.player?.weeklyXpTarget || 1000;
   const GRADES = [[1.25,"S"],[1,"A"],[.8,"B"],[.6,"C"],[.4,"D"],[0,"E"]];
@@ -656,6 +691,7 @@ body:not(.locked) #login{display:none}
   // (table public.docs, one row per path, RLS owner-only) whenever there's a session and a connection.
   let sb = null, session = null, days = {}, config = null, progress = {cleared:{}, values:{}}, report = null;
   let whoop = {}, whoopMeta = null;   // whoop/YYYY-MM-DD rows + whoop/meta, written by the sync on Charlie's Mac
+  let bodyHist = null;                // body/history, brought over once from the Recomp Log
   const LS = {
     get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(_){ return d; } },
     set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_){} },
@@ -682,7 +718,7 @@ body:not(.locked) #login{display:none}
       if (path.startsWith("days/")) next[path.slice(5)] = JSON.parse(JSON.stringify(data));
       else if (path.startsWith("whoop/") && path !== "whoop/meta") wh[path.slice(6)] = data;
     }
-    days = next; whoop = wh; whoopMeta = merged["whoop/meta"] || null;
+    days = next; whoop = wh; whoopMeta = merged["whoop/meta"] || null; bodyHist = merged["body/history"] || null;
     render();
   }
   function write(path, body){
@@ -925,7 +961,7 @@ body:not(.locked) #login{display:none}
       <button class="btn tiny${gold>=r.cost?" solid":""}" data-buy="${esc(r.id)}" ${gold>=r.cost?"":"disabled"}>${gold>=r.cost?"Redeem":"Locked"}</button></div>`).join("");
     $("t-spend").hidden = !SPEND();
     if (SPEND()) renderSpend(sp);
-    renderReport(sp); renderDebt(); renderWhoop(); renderGym();
+    renderReport(sp); renderDebt(); renderWhoop(); renderGym(); renderBody();
     const red = (progress.redeemed||[]).slice().reverse().slice(0,10);
     $("redeemed").innerHTML = red.length ? red.map(r => `<div class="entry"><span class="tag">Reward</span><div class="grow">${esc(r.name)}<small>${esc(r.day||"")}</small></div><span class="amt">−${r.cost} G</span></div>`).join("")
       : `<div class="empty">Nothing redeemed yet. Clear quests to earn gold.</div>`;
@@ -1137,6 +1173,84 @@ body:not(.locked) #login{display:none}
     }).join("") : `<div class="empty">Key lifts in the gym plan show here.</div>`;
     $("gy-rulesw").hidden = !(G.rules||[]).length;
     $("gy-rules").innerHTML = (G.rules||[]).map(r => `<div class="entry"><div class="grow">${esc(r)}</div></div>`).join("");
+  }
+
+  // ---------- body ----------
+  // {day: value} for weight or waist: the Recomp Log history, then day docs on top
+  function bodySeries(field, histKey){
+    const out = Object.assign({}, bodyHist?.[histKey] || {});
+    for (const [k, d] of Object.entries(days)) if (typeof d[field]==="number") out[k] = d[field];
+    return out;
+  }
+  function shotList(){
+    const out = (bodyHist?.shots||[]).map(s => ({...s, hist:true}));
+    for (const [k, d] of Object.entries(days)) for (const e of (d.entries||[])) if (e.type==="shot") out.push({day:k, dose:e.dose, unit:e.unit, ts:e.ts});
+    return out.sort((a,b) => a.day===b.day ? (a.ts||0)-(b.ts||0) : a.day<b.day ? -1 : 1);
+  }
+  const avg = a => a.length ? a.reduce((t, v) => t+v, 0)/a.length : null;
+  const longDate = k => parseKey(k).toLocaleDateString("en-CA",{weekday:"short", month:"short", day:"numeric"});
+  // Shot status: next is the last shot + every days; after shots.until (the last planned shot) the course reads as done.
+  function shotState(){
+    const S = BODY()?.shots; if (!S) return null;
+    const k = today(), every = S.every || 7, shots = shotList(), last = shots[shots.length-1] || null;
+    const over = !!S.until && !!last && (last.day >= S.until || k > addDays(S.until, every));
+    const next = last ? addDays(last.day, every) : null, dd = next ? daysBetween(k, next) : null;
+    let left = 0; if (S.until && next && !over) for (let x = next; x <= S.until; x = addDays(x, every)) left++;
+    return {S, shots, last, over, next, dd, total: S.until ? shots.length + left : null};
+  }
+  // 4 weeks of weigh-ins as a line, dated by day so gaps show as gaps
+  function weightLine(W, k){
+    const from = addDays(k, -27), pts = Object.keys(W).sort().filter(x => x >= from && x <= k).map(x => ({x, v:W[x]}));
+    if (pts.length < 2) return "";
+    const w = 320, h = 70, lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v)), span = (hi-lo) || 1;
+    const X = p => (10 + (w-52) * daysBetween(from, p.x)/27).toFixed(1), Y = v => (8 + (h-26) * (1 - (v-lo)/span)).toFixed(1), e = pts[pts.length-1];
+    return `<div class="ch-h">Weight · last 4 weeks</div><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Weight over the last 4 weeks, ${pts[0].v} to ${e.v} lb">
+      <polyline points="${pts.map(p => `${X(p)},${Y(p.v)}`).join(" ")}" fill="none" stroke="var(--glow)" stroke-width="1.5"/>
+      ${pts.map(p => `<circle cx="${X(p)}" cy="${Y(p.v)}" r="2.2" fill="var(--glow)"><title>${esc(shortDate(p.x))}: ${p.v} lb</title></circle>`).join("")}
+      <text class="v" x="${w-2}" y="${Number(Y(e.v))+3}" text-anchor="end">${e.v}</text>
+      <text x="10" y="${h-3}">${esc(shortDate(from))}</text><text x="${w-42}" y="${h-3}" text-anchor="end">${esc(shortDate(k))}</text></svg>`;
+  }
+  function renderBody(){
+    const B = BODY(); $("bodywin").hidden = !B; $("shotnote").innerHTML = ""; if (!B) return;
+    const k = today(), st = shotState();
+    $("bd-shotw").hidden = !st;
+    if (st){
+      const {S, shots, last, over, next, dd, total} = st, unit = S.unit || "mg";
+      $("sh-name").textContent = S.name || "Shots";
+      $("sh-status").textContent = over ? "Course done" : !last ? "No shots logged" : dd > 1 ? `Next ${longDate(next)}` : dd===1 ? "Next shot tomorrow" : dd===0 ? "Shot due today" : `${-dd} day${dd===-1?"":"s"} late`;
+      $("sh-status").className = "mono" + (!over && last && dd===0 ? " gold-h" : !over && last && dd < 0 ? " neg" : "");
+      $("sh-sub").textContent = [last ? `Last ${shortDate(last.day)} · ${last.dose ?? S.dose} ${last.unit || unit}` : "", total ? `shot ${shots.length} of ${total}` : "",
+        over && S.until ? `last planned shot was ${shortDate(S.until)}` : ""].filter(Boolean).join(" · ");
+      $("sh-dose-l").textContent = `Dose (${unit})`;
+      const dose = $("sh-dose"), day = $("sh-day");
+      if (document.activeElement !== dose && !dose.value) dose.value = last?.dose ?? S.dose ?? "";
+      day.max = k; if (!day.value && document.activeElement !== day) day.value = k;
+      $("sh-list").innerHTML = shots.slice(-4).reverse().map(s => `<div class="entry"><span class="tag">Shot</span><div class="grow">${esc(s.dose ?? S.dose)} ${esc(s.unit || unit)}<small>${esc(longDate(s.day))}</small></div>
+        <button class="btn tiny" type="button" data-shotdel="${esc(s.day)}|${s.hist ? "h" : esc(s.ts)}" aria-label="Delete the shot on ${esc(shortDate(s.day))}">✕</button></div>`).join("");
+      if (!over && last && dd <= 0) $("shotnote").innerHTML = `<div class="reward">${dd===0 ? "Shot day" : "Shot is late"} · ${esc(S.name || "Shot")} ${esc(last.dose ?? S.dose)} ${esc(unit)} · log it in Body below</div>`;
+    }
+
+    const W = bodySeries("weight", "weights"), wk = Object.keys(W).sort(), lw = wk[wk.length-1];
+    const win = (a, b) => wk.filter(x => x > addDays(k, -a) && x <= addDays(k, -b)).map(x => W[x]);
+    const a7 = avg(win(7, 0)), p7 = avg(win(14, 7));
+    $("bd-w").innerHTML = lw ? `${W[lw]} <span class="sub">lb</span>` : "—";
+    $("bd-w-sub").textContent = [typeof days[k]?.weight==="number" ? "" : "No weigh-in yet today, log it above", lw && lw !== k ? `last ${shortDate(lw)}` : "",
+      a7 ? `7-day average ${a7.toFixed(1)}` : "", a7 && p7 ? `${a7 <= p7 ? "down" : "up"} ${Math.abs(a7-p7).toFixed(1)} on the week before` : "",
+      a7 && B.startWeight ? `${Math.abs(B.startWeight-a7).toFixed(1)} ${a7 <= B.startWeight ? "under" : "over"} your ${B.startWeight} start` : ""].filter(Boolean).join(" · ");
+    $("bd-chart").innerHTML = weightLine(W, k);
+
+    const Wa = bodySeries("waist", "waist"), wak = Object.keys(Wa).sort(), lwa = wak[wak.length-1], fwa = wak[0];
+    const due = !lwa || daysBetween(lwa, k) >= (B.waistEvery || 7);
+    $("bd-waist").innerHTML = lwa ? `${Wa[lwa]} <span class="sub">in</span>` : "—";
+    $("bd-waist-l").classList.toggle("gold-h", due);
+    $("bd-waist-sub").textContent = [lwa ? `Last ${shortDate(lwa)}` : "Not measured yet", lwa && fwa !== lwa ? `${Wa[lwa] <= Wa[fwa] ? "down" : "up"} ${Math.abs(Wa[lwa]-Wa[fwa]).toFixed(1)} in since ${shortDate(fwa)}` : "",
+      due ? "due: measure at your belly button, same morning as the weigh-in" : ""].filter(Boolean).join(" · ");
+
+    const cq = daily().find(q => q.id==="crea");
+    $("bd-crea-row").hidden = !cq;
+    if (cq){ const on = new Set((bodyHist?.crea||[]).concat(Object.keys(days).filter(x => days[x].q?.crea)));
+      let n = 0; for (let i=0;i<7;i++) if (on.has(addDays(k, -i))) n++;
+      $("bd-crea").textContent = `${n} of the last 7 days`; }
   }
 
   // ---------- Whoop (read-only) ----------
@@ -1451,6 +1565,33 @@ body:not(.locked) #login{display:none}
     saveDay(k, {entries:(d.entries||[]).filter(x => x !== gone)});
     if (gone.type==="debt") restoreDebt(gone);
     toast(gone.type==="cashout" ? `Cash-out undone · <b>−${(gone.gold||0).toLocaleString()} G</b>` : gone.type==="debt" ? "Debt payment undone" : "Purchase deleted");
+  });
+
+  $("shotform").addEventListener("submit", e => {
+    e.preventDefault();
+    const S = BODY()?.shots; if (!S) return;
+    const dose = Number($("sh-dose").value); if (!(dose > 0)) { $("sh-dose").focus(); return; }
+    const picked = $("sh-day").value, k = picked && picked <= today() ? picked : today(), d = days[k] || {entries:[]}, unit = S.unit || "mg";
+    if (shotList().some(s => s.day===k) && !confirm(`There's already a shot on ${shortDate(k)}. Log another one?`)) return;
+    saveDay(k, {entries:(d.entries||[]).concat([{type:"shot", text:`${S.name || "Shot"} ${dose} ${unit}`, dose, unit, ts:Date.now()}])});
+    $("sh-day").value = today();
+    toast(`Shot logged · <b>${esc(dose)} ${esc(unit)}</b> on ${esc(shortDate(k))}`);
+  });
+  // A shot from the Recomp Log lives in body/history; one logged here is a "shot" entry on its day.
+  $("sh-list").addEventListener("click", e => {
+    const b = e.target.closest("[data-shotdel]"); if (!b) return;
+    const [k, ts] = b.dataset.shotdel.split("|");
+    if (!confirm(`Delete the shot on ${shortDate(k)}?`)) return;
+    if (ts === "h"){ const h = JSON.parse(JSON.stringify(bodyHist || {})); const i = (h.shots||[]).findIndex(s => s.day===k);
+      if (i < 0) return; h.shots.splice(i, 1); write("body/history", h); applyDocs(); }
+    else { const d = days[k]; if (!d) return; saveDay(k, {entries:(d.entries||[]).filter(x => !(x.type==="shot" && String(x.ts)===ts))}); }
+    toast("Shot deleted");
+  });
+  $("waistform").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = Math.round(Number($("bd-waist-in").value)*10)/10; if (!(v >= 10 && v <= 80)) { $("bd-waist-in").focus(); return; }
+    saveDay(today(), {waist:v}); $("bd-waist-in").value = "";
+    toast(`Waist recorded · <b>${v} in</b>`);
   });
 
   // Ticks and top sets save to today's day doc as they happen, so closing the app mid-workout loses nothing.
