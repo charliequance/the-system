@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Food / Gym / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window; Quests ends with the Body window. Single dark theme by design. */
+/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Today / Body / Money / Goals. Today is the Status window, Whoop's Condition window and the daily quests; Body (Food / Gym / Weight & shots), Money (Spend / Shop) and Goals (Gates / Progress / Log) flip between their pages with the switch at their top. Single dark theme by design. */
 :root{
   --void:#05070d;        /* page ground */
   --panel:#0a1322;       /* window fill */
@@ -226,10 +226,16 @@ button{font:inherit}
 /* tabs */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(5,7,13,.94);border-top:1px solid var(--line);backdrop-filter:blur(8px);z-index:5}
 nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
-nav.tabs button{background:none;border:none;color:var(--mute);padding:12px 1px 12px;font-family:var(--f-display);letter-spacing:.03em;font-size:11px;text-transform:uppercase;cursor:pointer;position:relative}
+nav.tabs button{background:none;border:none;color:var(--mute);padding:13px 4px 13px;font-family:var(--f-display);letter-spacing:.12em;font-size:13px;text-transform:uppercase;cursor:pointer;position:relative}
 nav.tabs button[aria-selected=true]{color:var(--glow);text-shadow:0 0 10px var(--glow)}
 nav.tabs button[aria-selected=true]::before{content:"";position:absolute;top:-1px;left:22%;right:22%;height:2px;background:var(--glow);box-shadow:0 0 10px var(--glow)}
 nav.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:-4px}
+/* page switch at the top of Body, Money and Goals */
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:4px;background:var(--panel);box-shadow:0 0 14px var(--glow-soft);margin-bottom:14px;overflow:hidden}
+.seg button{background:none;border:none;color:var(--mute);padding:10px 4px;font-family:var(--f-display);font-weight:600;letter-spacing:.08em;font-size:12px;text-transform:uppercase;cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-selected=true]{color:var(--glow);background:rgba(63,169,255,.1);text-shadow:0 0 10px var(--glow);box-shadow:inset 0 -2px 0 var(--glow)}
+.seg button:focus-visible{outline:2px solid var(--gold);outline-offset:-3px}
 
 /* toast */
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 14px);transform:translateX(-50%);z-index:9;background:var(--panel);border:1px solid var(--glow);
@@ -237,14 +243,14 @@ nav.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:-4px}
 .toast b{color:var(--gold)}
 .status-line{font-size:12px;color:var(--mute);text-align:center}
 @keyframes rise{from{transform:translateY(6px);opacity:.4}to{transform:none;opacity:1}}
-.view:not([hidden]){animation:rise .25s ease-out}
+.page:not([hidden]){animation:rise .25s ease-out}
 /* sign-in gate */
 .login{max-width:420px;margin:12vh auto 0;display:grid;gap:12px}
 .login .sub{text-align:center}
 .login .err{color:var(--red);font-size:13px;text-align:center;min-height:1em}
 body.locked nav.tabs,body.locked #app{display:none}
 body:not(.locked) #login{display:none}
-@media (prefers-reduced-motion:reduce){.view:not([hidden]){animation:none}.bar > i{transition:none}}
+@media (prefers-reduced-motion:reduce){.page:not([hidden]){animation:none}.bar > i{transition:none}}
 </style>
 </head>
 <body class="locked">
@@ -264,366 +270,391 @@ body:not(.locked) #login{display:none}
 <div class="wrap" id="app">
   <div class="sys-head"><span>[ <b>The System</b> ]</span><span id="clock" class="mono"></span></div>
 
-  <!-- STATUS -->
-  <section class="view" id="v-status" aria-label="Status">
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span>Status</div>
-        <div class="player">
-          <div class="rank" id="rank">E</div>
-          <div>
-            <h1 id="pname">PLAYER</h1>
-            <dl class="kv">
-              <dt>Job</dt><dd id="pjob">—</dd>
-              <dt>Title</dt><dd id="ptitle">—</dd>
-            </dl>
+  <!-- TODAY: level, condition, daily quests -->
+  <section class="view" id="g-today" aria-label="Today">
+    <section class="page" id="v-today" aria-label="Today">
+      <div class="wrap">
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span>Status</div>
+          <div class="player">
+            <div class="rank" id="rank">E</div>
+            <div>
+              <h1 id="pname">PLAYER</h1>
+              <dl class="kv">
+                <dt>Job</dt><dd id="pjob">—</dd>
+                <dt>Title</dt><dd id="ptitle">—</dd>
+              </dl>
+            </div>
           </div>
-        </div>
-        <div class="row between" style="margin-top:14px;align-items:flex-end">
-          <div class="lvl"><small>LV</small><span id="lvl">1</span></div>
-          <div class="sub mono" id="xptext">0 / 0 XP</div>
-        </div>
-        <div class="bar" style="margin-top:6px"><i id="xpbar" style="width:0%"></i></div>
-      </div>
-
-      <div class="win" id="whoopwin" hidden>
-        <div class="win-title"><span class="bang">!</span>Condition<span class="wh-day" id="wh-day"></span></div>
-        <div class="cond">
-          <div class="rec" id="wh-rec">—</div>
-          <div class="grow">
-            <div class="cond-h" id="wh-rec-l">Recovery</div>
-            <dl class="kv" style="margin-top:4px">
-              <dt>HRV</dt><dd class="mono" id="wh-hrv">—</dd>
-              <dt>Resting HR</dt><dd class="mono" id="wh-rhr">—</dd>
-            </dl>
+          <div class="row between" style="margin-top:14px;align-items:flex-end">
+            <div class="lvl"><small>LV</small><span id="lvl">1</span></div>
+            <div class="sub mono" id="xptext">0 / 0 XP</div>
           </div>
+          <div class="bar" style="margin-top:6px"><i id="xpbar" style="width:0%"></i></div>
         </div>
-        <div class="meter">
-          <div class="row between"><span class="cond-l">Sleep</span><span class="mono" id="wh-sleep">—</span></div>
-          <div class="bar thin"><i id="wh-sleep-bar" style="width:0%"></i></div>
-          <div class="sub" id="wh-sleep-sub"></div>
-        </div>
-        <div class="meter">
-          <div class="row between"><span class="cond-l">Strain</span><span class="mono" id="wh-strain">—</span></div>
-          <div class="bar thin"><i id="wh-strain-bar" style="width:0%"></i></div>
-          <div class="sub" id="wh-strain-sub"></div>
-        </div>
-        <div class="ch-h" style="margin-top:14px">Recovery · last 7 days</div>
-        <div class="week" id="wh-week" style="margin-top:6px"></div>
-        <div class="sub" id="wh-note" style="margin-top:10px"></div>
-      </div>
 
-      <div class="win" id="saleswin" hidden>
-        <div class="win-title">Sales</div>
-        <div class="row between"><span class="sub">Sold this week</span><span class="mono"><span class="gold-big" id="sl-sold">$0</span> <span class="sub" id="sl-target"></span></span></div>
-        <div class="bar gold" style="margin-top:6px"><i id="sl-bar" style="width:0%"></i></div>
-        <div class="chips" style="margin-top:10px">
-          <div class="chip"><b id="sl-est">0</b><span>Estimates</span></div>
-          <div class="chip"><b id="sl-sales">0</b><span>Sales</span></div>
-          <div class="chip"><b id="sl-close">—</b><span id="sl-close-l">Close rate</span></div>
-        </div>
-        <div class="row between" style="margin-top:10px"><span class="sub" id="sl-days"></span><span class="sub" id="sl-month"></span></div>
-      </div>
-
-      <div class="win" id="reportwin" hidden>
-        <div class="win-title"><span class="bang">!</span><span id="rp-title">Week report</span></div>
-        <div class="report">
-          <div class="rank" id="rp-grade">E</div>
-          <div class="grow">
-            <div class="row between"><span class="mono"><span class="gold-big" id="rp-xp">0</span> <span class="sub" id="rp-xpt"></span></span><span class="sub" id="rp-when"></span></div>
-            <div class="bar" style="margin-top:6px"><i id="rp-bar" style="width:0%"></i></div>
-            <div class="sub" id="rp-sub" style="margin-top:4px"></div>
+        <div class="win" id="whoopwin" hidden>
+          <div class="win-title"><span class="bang">!</span>Condition<span class="wh-day" id="wh-day"></span></div>
+          <div class="cond">
+            <div class="rec" id="wh-rec">—</div>
+            <div class="grow">
+              <div class="cond-h" id="wh-rec-l">Recovery</div>
+              <dl class="kv" style="margin-top:4px">
+                <dt>HRV</dt><dd class="mono" id="wh-hrv">—</dd>
+                <dt>Resting HR</dt><dd class="mono" id="wh-rhr">—</dd>
+              </dl>
+            </div>
           </div>
+          <div class="meter">
+            <div class="row between"><span class="cond-l">Sleep</span><span class="mono" id="wh-sleep">—</span></div>
+            <div class="bar thin"><i id="wh-sleep-bar" style="width:0%"></i></div>
+            <div class="sub" id="wh-sleep-sub"></div>
+          </div>
+          <div class="meter">
+            <div class="row between"><span class="cond-l">Strain</span><span class="mono" id="wh-strain">—</span></div>
+            <div class="bar thin"><i id="wh-strain-bar" style="width:0%"></i></div>
+            <div class="sub" id="wh-strain-sub"></div>
+          </div>
+          <div class="ch-h" style="margin-top:14px">Recovery · last 7 days</div>
+          <div class="week" id="wh-week" style="margin-top:6px"></div>
+          <div class="sub" id="wh-note" style="margin-top:10px"></div>
         </div>
-        <div class="chips six" id="rp-nums"></div>
-        <div class="sub" id="rp-note" style="margin-top:10px" hidden></div>
-      </div>
 
-      <div class="win" id="histwin" hidden>
-        <div class="win-title">History</div>
-        <div class="ch" id="ch-xp"></div>
-        <div class="ch" id="ch-spend"></div>
-      </div>
-
-      <div class="win">
-        <div class="win-title">Stats</div>
-        <div class="stats" id="stats"></div>
-      </div>
-
-      <div class="win">
-        <div class="win-title">Streaks</div>
-        <div class="chips">
-          <div class="chip"><b id="s-streak">0</b><span>Quest streak</span></div>
-          <div class="chip"><b id="s-nic">0</b><span id="s-nic-l">Clean streak</span></div>
-          <div class="chip"><b id="s-total">0</b><span>Quests cleared</span></div>
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span>Quest info</div>
+          <div class="banner"><div class="q">[ Daily quest has arrived ]</div><div class="n">Preparation to become strong</div></div>
+          <div class="goal-h">GOAL</div>
+          <div id="questlist"></div>
+          <div class="inputs" id="inputs">
+            <label class="f" for="in-weight" id="in-weight-l">Weight (lb)<input id="in-weight" type="number" inputmode="decimal" step="0.1" placeholder="0.0"></label>
+            <label class="f" for="in-protein" id="in-protein-l">Protein (g)<input id="in-protein" type="number" inputmode="numeric" step="5" placeholder="0"></label>
+          </div>
+          <div class="timer">Time remaining <b id="remain">--:--</b></div>
+          <div id="emergency"></div>
+          <div id="shotnote"></div>
+          <div id="questwarn"></div>
         </div>
-        <div class="row between" style="margin-top:10px"><span class="sub">Gold</span><span class="gold-big mono"><span id="gold">0</span> G</span></div>
-      </div>
 
-      <div class="win">
-        <div class="win-title">Next gate</div>
-        <div id="nextgate"></div>
+        <div class="win">
+          <div class="win-title">This week</div>
+          <div class="week" id="week"></div>
+        </div>
       </div>
-    </div>
+    </section>
   </section>
 
-  <!-- QUESTS -->
-  <section class="view" id="v-quests" aria-label="Daily quest" hidden>
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span>Quest info</div>
-        <div class="banner"><div class="q">[ Daily quest has arrived ]</div><div class="n">Preparation to become strong</div></div>
-        <div class="goal-h">GOAL</div>
-        <div id="questlist"></div>
-        <div class="inputs" id="inputs">
-          <label class="f" for="in-weight" id="in-weight-l">Weight (lb)<input id="in-weight" type="number" inputmode="decimal" step="0.1" placeholder="0.0"></label>
-          <label class="f" for="in-protein" id="in-protein-l">Protein (g)<input id="in-protein" type="number" inputmode="numeric" step="5" placeholder="0"></label>
+  <!-- BODY: food, gym, weight and shots -->
+  <section class="view" id="g-body" aria-label="Body" hidden>
+    <div class="wrap"><div class="seg" role="tablist" aria-label="Body pages">
+      <button type="button" role="tab" id="p-food" data-p="food" aria-selected="true">Food</button>
+      <button type="button" role="tab" id="p-gym" data-p="gym" aria-selected="false">Gym</button>
+      <button type="button" role="tab" id="p-weight" data-p="weight" aria-selected="false">Weight &amp; shots</button>
+    </div></div>
+    <!-- FOOD -->
+    <section class="page" id="v-food" aria-label="Food">
+      <div class="wrap">
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span>Fuel<span class="wh-day" id="fd-plan"></span></div>
+          <div class="row between"><span class="cond-l">Calories</span><span class="mono"><span class="gold-big" id="fd-cal">0</span> <span class="sub" id="fd-cal-t"></span></span></div>
+          <div class="bar" style="margin-top:6px" id="fd-cal-barw"><i id="fd-cal-bar" style="width:0%"></i></div>
+          <div class="row between" style="margin-top:12px"><span class="cond-l">Protein</span><span class="mono"><span class="gold-big" id="fd-pro">0</span> <span class="sub" id="fd-pro-t"></span></span></div>
+          <div class="bar" style="margin-top:6px"><i id="fd-pro-bar" style="width:0%"></i></div>
+          <div class="sub" id="fd-left" style="margin-top:8px"></div>
+          <div id="fd-warn"></div>
         </div>
-        <div class="timer">Time remaining <b id="remain">--:--</b></div>
-        <div id="emergency"></div>
-        <div id="shotnote"></div>
-        <div id="questwarn"></div>
-      </div>
-
-      <div class="win">
-        <div class="win-title">This week</div>
-        <div class="week" id="week"></div>
-      </div>
-
-      <div class="win" id="bodywin" hidden>
-        <div class="win-title"><span class="bang">!</span>Body</div>
-        <div id="bd-shotw">
-          <div class="row between"><span class="cond-l" id="sh-name">Shots</span><span class="mono" id="sh-status">—</span></div>
-          <div class="sub" id="sh-sub"></div>
-          <form class="row" id="shotform" style="margin-top:8px">
-            <label class="f grow" for="sh-dose"><span id="sh-dose-l">Dose (mg)</span><input id="sh-dose" type="number" inputmode="decimal" step="0.05" min="0"></label>
-            <label class="f grow" for="sh-day">Day<input id="sh-day" type="date"></label>
-            <button class="btn solid" type="submit" style="align-self:flex-end">Log shot</button>
+        <div class="win" id="fd-aiw" hidden>
+          <div class="win-title">Describe it or snap it</div>
+          <form class="form" id="aiform">
+            <label class="f" for="ai-text">What you ate<textarea id="ai-text" rows="2" placeholder="2 eggs, toast with butter, a Premier shake"></textarea></label>
+            <div class="two">
+              <label class="btn" for="ai-photo" style="text-align:center;cursor:pointer">Add photo<input id="ai-photo" type="file" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none"></label>
+              <button class="btn solid" type="submit" id="ai-go">Estimate</button>
+            </div>
+            <div class="sub" id="ai-photo-l"></div>
+            <div class="sub neg" id="ai-err"></div>
           </form>
-          <div id="sh-list" style="margin-top:4px"></div>
+          <div id="ai-out"></div>
         </div>
-        <div class="meter">
-          <div class="row between"><span class="cond-l">Weight</span><span class="mono" id="bd-w">—</span></div>
-          <div class="sub" id="bd-w-sub"></div>
-          <div class="ch" id="bd-chart"></div>
+        <div class="win">
+          <div class="win-title">Add food</div>
+          <form class="form" id="foodform">
+            <label class="f" for="fd-what">What<input id="fd-what" type="text" placeholder="Chicken wrap"></label>
+            <div class="two">
+              <label class="f" for="fd-kcal">Calories<input id="fd-kcal" type="number" inputmode="numeric" step="10" min="0" placeholder="0"></label>
+              <label class="f" for="fd-g">Protein (g)<input id="fd-g" type="number" inputmode="numeric" step="1" min="0" placeholder="0"></label>
+            </div>
+            <div class="sub neg" id="fd-err"></div>
+            <div class="two"><button class="btn" type="button" id="fd-copy">Copy yesterday</button><button class="btn solid" type="submit">Add</button></div>
+          </form>
+          <div class="goal-h">YOUR USUALS</div>
+          <div class="daypick" id="fd-usual"></div>
         </div>
-        <div class="meter">
-          <div class="row between"><span class="cond-l" id="bd-waist-l">Waist</span><span class="mono" id="bd-waist">—</span></div>
-          <div class="sub" id="bd-waist-sub"></div>
-          <form class="row" id="waistform" style="margin-top:8px">
-            <label class="f grow" for="bd-waist-in">This week's waist (in)<input id="bd-waist-in" type="number" inputmode="decimal" step="0.1" min="10" placeholder="34.5"></label>
-            <button class="btn solid" type="submit" style="align-self:flex-end">Record</button>
+        <div class="win">
+          <div class="win-title">Today's food</div>
+          <div id="fd-list"></div>
+        </div>
+        <div class="win">
+          <div class="win-title">Last 7 days</div>
+          <div class="week" id="fd-week"></div>
+          <div class="sub" id="fd-avg" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GYM -->
+    <section class="page" id="v-gym" aria-label="Gym" hidden>
+      <div class="wrap">
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span><span id="gy-title">Next up</span></div>
+          <div class="banner"><div class="q" id="gy-q">[ Day 1 ]</div><div class="n" id="gy-name">Gym</div></div>
+          <div class="sub" id="gy-focus" style="text-align:center;margin-top:2px"></div>
+          <div id="gy-list" style="margin-top:8px"></div>
+          <div id="gy-foot"></div>
+          <div id="gy-pickw">
+            <div class="goal-h">DO A DIFFERENT DAY</div>
+            <div class="daypick" id="gy-pick"></div>
+          </div>
+        </div>
+        <div class="win">
+          <div class="win-title">This week</div>
+          <div class="row between"><span class="sub">Sessions this week</span><span class="mono" id="gy-wk-n">0 / 4</span></div>
+          <div class="week" id="gy-week" style="margin-top:8px"></div>
+          <div class="sub" id="gy-mq" style="margin-top:10px" hidden></div>
+        </div>
+        <div class="win">
+          <div class="win-title">Key lifts</div>
+          <div id="gy-lifts"></div>
+        </div>
+        <div class="win" id="gy-rulesw">
+          <div class="win-title">How it works</div>
+          <div id="gy-rules"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WEIGHT & SHOTS -->
+    <section class="page" id="v-weight" aria-label="Weight and shots" hidden>
+      <div class="wrap">
+        <div class="win" id="bodywin" hidden>
+          <div class="win-title"><span class="bang">!</span>Body</div>
+          <div id="bd-shotw">
+            <div class="row between"><span class="cond-l" id="sh-name">Shots</span><span class="mono" id="sh-status">—</span></div>
+            <div class="sub" id="sh-sub"></div>
+            <form class="row" id="shotform" style="margin-top:8px">
+              <label class="f grow" for="sh-dose"><span id="sh-dose-l">Dose (mg)</span><input id="sh-dose" type="number" inputmode="decimal" step="0.05" min="0"></label>
+              <label class="f grow" for="sh-day">Day<input id="sh-day" type="date"></label>
+              <button class="btn solid" type="submit" style="align-self:flex-end">Log shot</button>
+            </form>
+            <div id="sh-list" style="margin-top:4px"></div>
+          </div>
+          <div class="meter">
+            <div class="row between"><span class="cond-l">Weight</span><span class="mono" id="bd-w">—</span></div>
+            <div class="sub" id="bd-w-sub"></div>
+            <div class="ch" id="bd-chart"></div>
+          </div>
+          <div class="meter">
+            <div class="row between"><span class="cond-l" id="bd-waist-l">Waist</span><span class="mono" id="bd-waist">—</span></div>
+            <div class="sub" id="bd-waist-sub"></div>
+            <form class="row" id="waistform" style="margin-top:8px">
+              <label class="f grow" for="bd-waist-in">This week's waist (in)<input id="bd-waist-in" type="number" inputmode="decimal" step="0.1" min="10" placeholder="34.5"></label>
+              <button class="btn solid" type="submit" style="align-self:flex-end">Record</button>
+            </form>
+          </div>
+          <div class="meter" id="bd-crea-row">
+            <div class="row between"><span class="cond-l">Creatine</span><span class="mono" id="bd-crea">—</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- MONEY: spending, gold shop -->
+  <section class="view" id="g-money" aria-label="Money" hidden>
+    <div class="wrap"><div class="seg" role="tablist" aria-label="Money pages">
+      <button type="button" role="tab" id="p-spend" data-p="spend" aria-selected="true">Spend</button>
+      <button type="button" role="tab" id="p-shop" data-p="shop" aria-selected="false">Shop</button>
+    </div></div>
+    <!-- SPEND -->
+    <section class="page" id="v-spend" aria-label="Spending">
+      <div class="wrap">
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span>Spending</div>
+          <div class="row between"><span class="sub" id="sp-range">This week</span><span class="mono"><span class="gold-big" id="sp-total">$0</span> <span class="sub" id="sp-limit"></span></span></div>
+          <div class="bar" style="margin-top:6px" id="sp-barw"><i id="sp-bar" style="width:0%"></i></div>
+          <div class="row between" style="margin-top:8px"><span class="sub" id="sp-left"></span><span class="mono" id="sp-gold"></span></div>
+          <div class="sub" id="sp-gold-note" style="margin-top:2px"></div>
+          <div id="sp-caps" style="margin-top:10px"></div>
+          <div class="sub" id="sp-bills" style="margin-top:6px"></div>
+        </div>
+        <div class="win">
+          <div class="win-title">Record spending</div>
+          <form class="form" id="spform">
+            <div class="two">
+              <label class="f" for="sp-amt">Amount ($)<input id="sp-amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0"></label>
+              <label class="f" for="sp-day">Day<input id="sp-day" type="date"></label>
+            </div>
+            <label class="f" for="sp-what">What<input id="sp-what" type="text" placeholder="Costco run, Friday takeout"></label>
+            <label class="f" for="sp-cat">Category<select id="sp-cat"></select></label>
+            <label class="quest" for="sp-big" style="border:none;padding:4px 2px"><input type="checkbox" id="sp-big"><span class="box" aria-hidden="true"></span>
+              <span class="txt"><b>Big buy</b><small>Comes out of the Big buys pot, not this week's limit</small></span></label>
+            <div class="two">
+              <button class="btn" type="button" id="sp-zero">Nothing spent today</button>
+              <button class="btn solid" type="submit">Record</button>
+            </div>
           </form>
         </div>
-        <div class="meter" id="bd-crea-row">
-          <div class="row between"><span class="cond-l">Creatine</span><span class="mono" id="bd-crea">—</span></div>
+        <div class="win">
+          <div class="win-title gold-h">Big buys pot</div>
+          <div class="row between"><span class="sub" id="sp-pot-note"></span><span class="gold-big mono" id="sp-pot">$0</span></div>
+          <form class="row" id="cashform" style="margin-top:10px">
+            <label class="f grow" for="cash-amt"><span id="cash-l">Cash out to gold</span><input id="cash-amt" type="number" inputmode="decimal" step="1" min="1" placeholder="$ amount"></label>
+            <button class="btn solid" type="submit" id="cash-go" style="align-self:flex-end">Cash out</button>
+          </form>
+          <div id="sp-bigs" style="margin-top:6px"></div>
+        </div>
+        <div class="win" id="debtwin" hidden>
+          <div class="win-title">Debt</div>
+          <div class="row between"><span class="sub" id="dt-note"></span><span class="gold-big mono" id="dt-bal">$0</span></div>
+          <div class="bar gold" style="margin-top:6px"><i id="dt-bar" style="width:0%"></i></div>
+          <div class="sub" id="dt-hint" style="margin-top:8px"></div>
+          <form class="row" id="debtform" style="margin-top:8px">
+            <label class="f grow" for="dt-amt"><span id="dt-l">Paid toward debt</span><input id="dt-amt" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="$ amount"></label>
+            <button class="btn solid" type="submit" style="align-self:flex-end">Paid</button>
+          </form>
+          <div id="dt-list" style="margin-top:6px"></div>
+        </div>
+        <div class="win">
+          <div class="win-title">This week's purchases</div>
+          <div id="sp-entries"></div>
+        </div>
+        <div class="win">
+          <div class="win-title">Past weeks</div>
+          <div id="sp-weeks"></div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- FOOD -->
-  <section class="view" id="v-food" aria-label="Food" hidden>
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span>Fuel<span class="wh-day" id="fd-plan"></span></div>
-        <div class="row between"><span class="cond-l">Calories</span><span class="mono"><span class="gold-big" id="fd-cal">0</span> <span class="sub" id="fd-cal-t"></span></span></div>
-        <div class="bar" style="margin-top:6px" id="fd-cal-barw"><i id="fd-cal-bar" style="width:0%"></i></div>
-        <div class="row between" style="margin-top:12px"><span class="cond-l">Protein</span><span class="mono"><span class="gold-big" id="fd-pro">0</span> <span class="sub" id="fd-pro-t"></span></span></div>
-        <div class="bar" style="margin-top:6px"><i id="fd-pro-bar" style="width:0%"></i></div>
-        <div class="sub" id="fd-left" style="margin-top:8px"></div>
-        <div id="fd-warn"></div>
-      </div>
-      <div class="win" id="fd-aiw" hidden>
-        <div class="win-title">Describe it or snap it</div>
-        <form class="form" id="aiform">
-          <label class="f" for="ai-text">What you ate<textarea id="ai-text" rows="2" placeholder="2 eggs, toast with butter, a Premier shake"></textarea></label>
-          <div class="two">
-            <label class="btn" for="ai-photo" style="text-align:center;cursor:pointer">Add photo<input id="ai-photo" type="file" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none"></label>
-            <button class="btn solid" type="submit" id="ai-go">Estimate</button>
-          </div>
-          <div class="sub" id="ai-photo-l"></div>
-          <div class="sub neg" id="ai-err"></div>
-        </form>
-        <div id="ai-out"></div>
-      </div>
-      <div class="win">
-        <div class="win-title">Add food</div>
-        <form class="form" id="foodform">
-          <label class="f" for="fd-what">What<input id="fd-what" type="text" placeholder="Chicken wrap"></label>
-          <div class="two">
-            <label class="f" for="fd-kcal">Calories<input id="fd-kcal" type="number" inputmode="numeric" step="10" min="0" placeholder="0"></label>
-            <label class="f" for="fd-g">Protein (g)<input id="fd-g" type="number" inputmode="numeric" step="1" min="0" placeholder="0"></label>
-          </div>
-          <div class="sub neg" id="fd-err"></div>
-          <div class="two"><button class="btn" type="button" id="fd-copy">Copy yesterday</button><button class="btn solid" type="submit">Add</button></div>
-        </form>
-        <div class="goal-h">YOUR USUALS</div>
-        <div class="daypick" id="fd-usual"></div>
-      </div>
-      <div class="win">
-        <div class="win-title">Today's food</div>
-        <div id="fd-list"></div>
-      </div>
-      <div class="win">
-        <div class="win-title">Last 7 days</div>
-        <div class="week" id="fd-week"></div>
-        <div class="sub" id="fd-avg" style="margin-top:10px"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- GYM -->
-  <section class="view" id="v-gym" aria-label="Gym" hidden>
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span><span id="gy-title">Next up</span></div>
-        <div class="banner"><div class="q" id="gy-q">[ Day 1 ]</div><div class="n" id="gy-name">Gym</div></div>
-        <div class="sub" id="gy-focus" style="text-align:center;margin-top:2px"></div>
-        <div id="gy-list" style="margin-top:8px"></div>
-        <div id="gy-foot"></div>
-        <div id="gy-pickw">
-          <div class="goal-h">DO A DIFFERENT DAY</div>
-          <div class="daypick" id="gy-pick"></div>
+    <!-- SHOP -->
+    <section class="page" id="v-shop" aria-label="Shop" hidden>
+      <div class="wrap">
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span>Shop</div>
+          <div class="row between"><span class="sub">Every 4 XP earns 1 gold. Spend it on real rewards, guilt-free.</span><span class="gold-big mono"><span id="gold2">0</span> G</span></div>
+          <div class="sub" id="shop-note" style="margin-top:6px" hidden></div>
+          <div id="shop" style="margin-top:8px"></div>
+        </div>
+        <div class="win">
+          <div class="win-title">Redeemed</div>
+          <div id="redeemed"></div>
         </div>
       </div>
-      <div class="win">
-        <div class="win-title">This week</div>
-        <div class="row between"><span class="sub">Sessions this week</span><span class="mono" id="gy-wk-n">0 / 4</span></div>
-        <div class="week" id="gy-week" style="margin-top:8px"></div>
-        <div class="sub" id="gy-mq" style="margin-top:10px" hidden></div>
-      </div>
-      <div class="win">
-        <div class="win-title">Key lifts</div>
-        <div id="gy-lifts"></div>
-      </div>
-      <div class="win" id="gy-rulesw">
-        <div class="win-title">How it works</div>
-        <div id="gy-rules"></div>
-      </div>
-    </div>
+    </section>
   </section>
 
-  <!-- GATES -->
-  <section class="view" id="v-gates" aria-label="Gates and main quests" hidden>
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span>Gates</div>
-        <div class="sub" style="margin-bottom:6px">Deadlines are dungeon breaks. Clear them before the gate opens.</div>
-        <div id="gates"></div>
+  <!-- GOALS: gates and main quests, progress, log -->
+  <section class="view" id="g-goals" aria-label="Goals" hidden>
+    <div class="wrap"><div class="seg" role="tablist" aria-label="Goals pages">
+      <button type="button" role="tab" id="p-gates" data-p="gates" aria-selected="true">Gates</button>
+      <button type="button" role="tab" id="p-progress" data-p="progress" aria-selected="false">Progress</button>
+      <button type="button" role="tab" id="p-log" data-p="log" aria-selected="false">Log</button>
+    </div></div>
+    <!-- GATES -->
+    <section class="page" id="v-gates" aria-label="Gates and main quests">
+      <div class="wrap">
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span>Gates</div>
+          <div class="sub" style="margin-bottom:6px">Deadlines are dungeon breaks. Clear them before the gate opens.</div>
+          <div id="gates"></div>
+        </div>
+        <div class="win">
+          <div class="win-title">Main quests</div>
+          <div id="mainquests"></div>
+        </div>
       </div>
-      <div class="win">
-        <div class="win-title">Main quests</div>
-        <div id="mainquests"></div>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- SPEND -->
-  <section class="view" id="v-spend" aria-label="Spending" hidden>
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span>Spending</div>
-        <div class="row between"><span class="sub" id="sp-range">This week</span><span class="mono"><span class="gold-big" id="sp-total">$0</span> <span class="sub" id="sp-limit"></span></span></div>
-        <div class="bar" style="margin-top:6px" id="sp-barw"><i id="sp-bar" style="width:0%"></i></div>
-        <div class="row between" style="margin-top:8px"><span class="sub" id="sp-left"></span><span class="mono" id="sp-gold"></span></div>
-        <div class="sub" id="sp-gold-note" style="margin-top:2px"></div>
-        <div id="sp-caps" style="margin-top:10px"></div>
-        <div class="sub" id="sp-bills" style="margin-top:6px"></div>
-      </div>
-      <div class="win">
-        <div class="win-title">Record spending</div>
-        <form class="form" id="spform">
-          <div class="two">
-            <label class="f" for="sp-amt">Amount ($)<input id="sp-amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0"></label>
-            <label class="f" for="sp-day">Day<input id="sp-day" type="date"></label>
+    <!-- PROGRESS -->
+    <section class="page" id="v-progress" aria-label="Progress" hidden>
+      <div class="wrap">
+        <div class="win" id="reportwin" hidden>
+          <div class="win-title"><span class="bang">!</span><span id="rp-title">Week report</span></div>
+          <div class="report">
+            <div class="rank" id="rp-grade">E</div>
+            <div class="grow">
+              <div class="row between"><span class="mono"><span class="gold-big" id="rp-xp">0</span> <span class="sub" id="rp-xpt"></span></span><span class="sub" id="rp-when"></span></div>
+              <div class="bar" style="margin-top:6px"><i id="rp-bar" style="width:0%"></i></div>
+              <div class="sub" id="rp-sub" style="margin-top:4px"></div>
+            </div>
           </div>
-          <label class="f" for="sp-what">What<input id="sp-what" type="text" placeholder="Costco run, Friday takeout"></label>
-          <label class="f" for="sp-cat">Category<select id="sp-cat"></select></label>
-          <label class="quest" for="sp-big" style="border:none;padding:4px 2px"><input type="checkbox" id="sp-big"><span class="box" aria-hidden="true"></span>
-            <span class="txt"><b>Big buy</b><small>Comes out of the Big buys pot, not this week's limit</small></span></label>
-          <div class="two">
-            <button class="btn" type="button" id="sp-zero">Nothing spent today</button>
+          <div class="chips six" id="rp-nums"></div>
+          <div class="sub" id="rp-note" style="margin-top:10px" hidden></div>
+        </div>
+
+        <div class="win" id="saleswin" hidden>
+          <div class="win-title">Sales</div>
+          <div class="row between"><span class="sub">Sold this week</span><span class="mono"><span class="gold-big" id="sl-sold">$0</span> <span class="sub" id="sl-target"></span></span></div>
+          <div class="bar gold" style="margin-top:6px"><i id="sl-bar" style="width:0%"></i></div>
+          <div class="chips" style="margin-top:10px">
+            <div class="chip"><b id="sl-est">0</b><span>Estimates</span></div>
+            <div class="chip"><b id="sl-sales">0</b><span>Sales</span></div>
+            <div class="chip"><b id="sl-close">—</b><span id="sl-close-l">Close rate</span></div>
+          </div>
+          <div class="row between" style="margin-top:10px"><span class="sub" id="sl-days"></span><span class="sub" id="sl-month"></span></div>
+        </div>
+
+        <div class="win" id="histwin" hidden>
+          <div class="win-title">History</div>
+          <div class="ch" id="ch-xp"></div>
+          <div class="ch" id="ch-spend"></div>
+        </div>
+
+        <div class="win">
+          <div class="win-title">Stats</div>
+          <div class="stats" id="stats"></div>
+        </div>
+
+        <div class="win">
+          <div class="win-title">Streaks</div>
+          <div class="chips">
+            <div class="chip"><b id="s-streak">0</b><span>Quest streak</span></div>
+            <div class="chip"><b id="s-nic">0</b><span id="s-nic-l">Clean streak</span></div>
+            <div class="chip"><b id="s-total">0</b><span>Quests cleared</span></div>
+          </div>
+          <div class="row between" style="margin-top:10px"><span class="sub">Gold</span><span class="gold-big mono"><span id="gold">0</span> G</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <section class="page" id="v-log" aria-label="Log" hidden>
+      <div class="wrap">
+        <div class="win">
+          <div class="win-title"><span class="bang">!</span>Record</div>
+          <form class="form" id="logform">
+            <label class="f" for="lg-type">Type
+              <select id="lg-type">
+                <option value="estimate">Estimate</option>
+                <option value="sale">Sale</option>
+                <option value="workout">Workout</option>
+                <option value="money">Money move</option>
+                <option value="win">Win</option>
+                <option value="note">Note</option>
+              </select>
+            </label>
+            <label class="f" for="lg-text">Details<input id="lg-text" type="text"></label>
+            <div class="two">
+              <label class="f" for="lg-amt" id="lg-amt-l">Amount ($)<input id="lg-amt" type="number" inputmode="decimal" step="0.01" placeholder="0"></label>
+              <label class="f" for="lg-extra" id="lg-extra-l">Man-days<input id="lg-extra" type="number" inputmode="decimal" step="0.5" placeholder="0"></label>
+            </div>
             <button class="btn solid" type="submit">Record</button>
-          </div>
-        </form>
+          </form>
+        </div>
+        <div class="win">
+          <div class="win-title">Recent records</div>
+          <div id="entries"></div>
+        </div>
       </div>
-      <div class="win">
-        <div class="win-title gold-h">Big buys pot</div>
-        <div class="row between"><span class="sub" id="sp-pot-note"></span><span class="gold-big mono" id="sp-pot">$0</span></div>
-        <form class="row" id="cashform" style="margin-top:10px">
-          <label class="f grow" for="cash-amt"><span id="cash-l">Cash out to gold</span><input id="cash-amt" type="number" inputmode="decimal" step="1" min="1" placeholder="$ amount"></label>
-          <button class="btn solid" type="submit" id="cash-go" style="align-self:flex-end">Cash out</button>
-        </form>
-        <div id="sp-bigs" style="margin-top:6px"></div>
-      </div>
-      <div class="win" id="debtwin" hidden>
-        <div class="win-title">Debt</div>
-        <div class="row between"><span class="sub" id="dt-note"></span><span class="gold-big mono" id="dt-bal">$0</span></div>
-        <div class="bar gold" style="margin-top:6px"><i id="dt-bar" style="width:0%"></i></div>
-        <div class="sub" id="dt-hint" style="margin-top:8px"></div>
-        <form class="row" id="debtform" style="margin-top:8px">
-          <label class="f grow" for="dt-amt"><span id="dt-l">Paid toward debt</span><input id="dt-amt" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="$ amount"></label>
-          <button class="btn solid" type="submit" style="align-self:flex-end">Paid</button>
-        </form>
-        <div id="dt-list" style="margin-top:6px"></div>
-      </div>
-      <div class="win">
-        <div class="win-title">This week's purchases</div>
-        <div id="sp-entries"></div>
-      </div>
-      <div class="win">
-        <div class="win-title">Past weeks</div>
-        <div id="sp-weeks"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SHOP -->
-  <section class="view" id="v-shop" aria-label="Shop" hidden>
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span>Shop</div>
-        <div class="row between"><span class="sub">Every 4 XP earns 1 gold. Spend it on real rewards, guilt-free.</span><span class="gold-big mono"><span id="gold2">0</span> G</span></div>
-        <div class="sub" id="shop-note" style="margin-top:6px" hidden></div>
-        <div id="shop" style="margin-top:8px"></div>
-      </div>
-      <div class="win">
-        <div class="win-title">Redeemed</div>
-        <div id="redeemed"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- LOG -->
-  <section class="view" id="v-log" aria-label="Log" hidden>
-    <div class="wrap">
-      <div class="win">
-        <div class="win-title"><span class="bang">!</span>Record</div>
-        <form class="form" id="logform">
-          <label class="f" for="lg-type">Type
-            <select id="lg-type">
-              <option value="estimate">Estimate</option>
-              <option value="sale">Sale</option>
-              <option value="workout">Workout</option>
-              <option value="money">Money move</option>
-              <option value="win">Win</option>
-              <option value="note">Note</option>
-            </select>
-          </label>
-          <label class="f" for="lg-text">Details<input id="lg-text" type="text"></label>
-          <div class="two">
-            <label class="f" for="lg-amt" id="lg-amt-l">Amount ($)<input id="lg-amt" type="number" inputmode="decimal" step="0.01" placeholder="0"></label>
-            <label class="f" for="lg-extra" id="lg-extra-l">Man-days<input id="lg-extra" type="number" inputmode="decimal" step="0.5" placeholder="0"></label>
-          </div>
-          <button class="btn solid" type="submit">Record</button>
-        </form>
-      </div>
-      <div class="win">
-        <div class="win-title">Recent records</div>
-        <div id="entries"></div>
-      </div>
-    </div>
+    </section>
   </section>
 
   <p class="status-line" id="sync">Connecting to the System…</p>
@@ -631,14 +662,10 @@ body:not(.locked) #login{display:none}
 </div>
 
 <nav class="tabs" aria-label="Sections"><div class="in" role="tablist">
-  <button role="tab" id="t-status" aria-selected="true" data-v="status">Status</button>
-  <button role="tab" id="t-quests" aria-selected="false" data-v="quests">Quests</button>
-  <button role="tab" id="t-food" aria-selected="false" data-v="food" hidden>Food</button>
-  <button role="tab" id="t-gym" aria-selected="false" data-v="gym" hidden>Gym</button>
-  <button role="tab" id="t-gates" aria-selected="false" data-v="gates">Gates</button>
-  <button role="tab" id="t-spend" aria-selected="false" data-v="spend" hidden>Spend</button>
-  <button role="tab" id="t-shop" aria-selected="false" data-v="shop">Shop</button>
-  <button role="tab" id="t-log" aria-selected="false" data-v="log">Log</button>
+  <button role="tab" id="t-today" aria-selected="true" data-v="today">Today</button>
+  <button role="tab" id="t-body" aria-selected="false" data-v="body">Body</button>
+  <button role="tab" id="t-money" aria-selected="false" data-v="money">Money</button>
+  <button role="tab" id="t-goals" aria-selected="false" data-v="goals">Goals</button>
 </div></nav>
 <div class="toast" id="toast" hidden></div>
 
@@ -699,7 +726,7 @@ body:not(.locked) #login{display:none}
   const required = k => daily().filter(q => !q.optional && live(q, k));
   // The sales scoreboard and sales XP switch on when system/config has sales:{weeklyTarget, closeTarget, xpPer, estimateXp}.
   const SALES = () => config?.sales || null;
-  // The Spend tab switches on when system/config has spending:{weeklyLimit, goldPerDollar, since, scoreFrom, bigPerWeek, categories, caps}.
+  // The Spend page (Money tab) switches on when system/config has spending:{weeklyLimit, goldPerDollar, since, scoreFrom, bigPerWeek, categories, caps}.
   // Entries are type "spend" (amount, cat, big). Big buys and fixed categories (bills) never count toward the weekly limit.
   // subscriptions:[{name, amount, per:"week"|"month"|"year", since?, until?}] add their weekly share to every week's total on their own.
   const SPEND = () => config?.spending || null;
@@ -707,7 +734,7 @@ body:not(.locked) #login{display:none}
   const DEBT = () => config?.debt || null;
   const debtQuest = () => (config?.mainQuests||[]).find(m => m.id === DEBT()?.quest) || null;
   const debtBalance = () => { const m = debtQuest(); return m ? Number(progress.values?.[m.id] ?? m.current ?? m.start) : null; };
-  // The Gym tab switches on when system/config has gym:{days:[{id, name, focus, ex:[{id, slot, name, sets, key?, quest?}]}], perWeek, rules}.
+  // The Gym page (Body tab) switches on when system/config has gym:{days:[{id, name, focus, ex:[{id, slot, name, sets, key?, quest?}]}], perWeek, rules}.
   // Days run in order: next up is the day after the last one finished, so a missed day skips nothing.
   // Today's ticks and top sets sit on the day doc as gym:{session, done:{exId:true}, lifts:{exId:{w, r}}} until Finish,
   // which adds a "workout" entry (session, done, lifts) and ticks "train", the same as recording a workout in the Log.
@@ -716,7 +743,7 @@ body:not(.locked) #login{display:none}
   // Weigh-ins are day doc `weight` (the Quests input), waist is day doc `waist`, shots are "shot" entries (dose, unit), creatine is quest "crea".
   // body/history holds what came over from the Recomp Log ({weights, waist, crea, shots}); a day doc wins over it on the same day.
   const BODY = () => config?.body || null;
-  // The Food tab switches on when system/config has food:{plan:[{from, name, cal, pro, floor}], proFloor, usual:[{text, cal, pro}], ai}.
+  // The Food page (Body tab) switches on when system/config has food:{plan:[{from, name, cal, pro, floor}], proFloor, usual:[{text, cal, pro}], ai}.
   // Each plan entry holds from its date on, so a target change can be set ahead. Foods are "food" entries (text, cal, pro) on the day;
   // body/history.food holds the Recomp Log's days. ai:true shows "Describe it or snap it", which calls the food-estimate Edge Function.
   const FOOD = () => config?.food?.plan?.length ? config.food : null;
@@ -1021,9 +1048,9 @@ body:not(.locked) #login{display:none}
     $("shop-note").textContent = config?.shopNote || ""; $("shop-note").hidden = !config?.shopNote;
     $("shop").innerHTML = rewards.map(r => `<div class="shop-item"><div class="txt"><b>${esc(r.name)}</b><small class="mono">${r.cost} G</small></div>
       <button class="btn tiny${gold>=r.cost?" solid":""}" data-buy="${esc(r.id)}" ${gold>=r.cost?"":"disabled"}>${gold>=r.cost?"Redeem":"Locked"}</button></div>`).join("");
-    $("t-spend").hidden = !SPEND();
+    $("p-spend").hidden = !SPEND();
     if (SPEND()) renderSpend(sp);
-    renderReport(sp); renderDebt(); renderWhoop(); renderGym(); renderBody(); renderFood();
+    renderReport(sp); renderDebt(); renderWhoop(); renderGym(); renderBody(); renderFood(); showTabs();
     const red = (progress.redeemed||[]).slice().reverse().slice(0,10);
     $("redeemed").innerHTML = red.length ? red.map(r => `<div class="entry"><span class="tag">Reward</span><div class="grow">${esc(r.name)}<small>${esc(r.day||"")}</small></div><span class="amt">−${r.cost} G</span></div>`).join("")
       : `<div class="empty">Nothing redeemed yet. Clear quests to earn gold.</div>`;
@@ -1059,10 +1086,6 @@ body:not(.locked) #login{display:none}
         <div><div class="dday${!c&&dd<=7?" soon":""}">${label}</div>
         <button class="btn tiny" data-gate="${esc(g.id)}" style="margin-top:4px">${c?"Undo":"Clear"}</button></div></div>`;
     }).join("") : `<div class="empty">No gates yet. Claude adds your deadlines here.</div>`;
-    const next = gates.find(g => !progress.cleared?.[g.id] && daysBetween(k,g.date)>=0);
-    $("nextgate").innerHTML = next
-      ? `<div class="gate" style="border:none"><div class="g-rank ${esc(next.rank)}"><span>${esc(next.rank)}</span></div><div class="txt"><b>${esc(next.name)}</b><small>${esc(next.date)}</small></div><div class="dday${daysBetween(k,next.date)<=7?" soon":""}">D-${daysBetween(k,next.date)}</div></div>`
-      : `<div class="empty">No open gates.</div>`;
 
     // main quests
     const latestW = Object.keys(days).sort().reverse().map(x=>days[x].weight).find(v=>typeof v==="number");
@@ -1089,7 +1112,7 @@ body:not(.locked) #login{display:none}
         <div class="edit" id="ed-${esc(m.id)}" hidden><input type="number" inputmode="decimal" id="edin-${esc(m.id)}" value="${cur ?? ""}" aria-label="New value for ${esc(m.title)}"><button class="btn tiny solid" data-save="${esc(m.id)}">Save</button></div></div>`;
     }).join("") : `<div class="empty">No main quests yet. Claude adds your goals here.</div>`;
 
-    // entries (food has its own tab, so it stays out of this list)
+    // entries (food has its own page, so it stays out of this list)
     const all = [];
     for (const kk of Object.keys(days).sort().reverse()) (days[kk].entries||[]).forEach((e, i) => { if (e.type !== "food") all.unshift({...e, day:kk, i}); });
     all.sort((a,b) => a.day===b.day ? b.i-a.i : a.day<b.day ? 1 : -1);
@@ -1174,7 +1197,7 @@ body:not(.locked) #login{display:none}
   const byKey = s => { const m = String(s||"").match(/^([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?/i), i = m ? MONTHS.indexOf(m[1].toLowerCase()) : -1;
     return i < 0 || i % 3 ? null : keyOf(new Date(Number(m[3]) || new Date().getFullYear(), i/3, Number(m[2]))); };
   function renderGym(){
-    const G = GYM(); $("t-gym").hidden = !G; if (!G) return;
+    const G = GYM(); $("p-gym").hidden = !G; if (!G) return;
     const k = today(), d = days[k] || {}, log = gymLog(), next = gymNext(log);
     const fin = log.filter(e => e.day===k).pop() || null;
     const sess = G.days.find(x => x.id===(fin ? fin.session : d.gym?.session)) || next;
@@ -1205,7 +1228,7 @@ body:not(.locked) #login{display:none}
     const ticked = rows.filter(r => r.on).length, trainXp = daily().find(q => q.id==="train")?.xp || 0;
     $("gy-foot").innerHTML = fin
       ? `<div class="reward">${esc(sess.name)} day complete · ${ticked} of ${rows.length} lifts</div>
-        <div class="sub" style="text-align:center;margin-top:4px">Next time: Day ${G.days.indexOf(next)+1} · ${esc(next.name)}. Logged by mistake? Delete it in the Log tab.</div>`
+        <div class="sub" style="text-align:center;margin-top:4px">Next time: Day ${G.days.indexOf(next)+1} · ${esc(next.name)}. Logged by mistake? Delete it under Goals, Log.</div>`
       : `<button class="btn solid" type="button" id="gy-finish" style="width:100%;margin-top:12px">Finish workout${trainXp && !d.q?.train ? ` · +${trainXp} XP` : ""}</button>
         <div class="sub" style="text-align:center;margin-top:6px">${ticked} of ${rows.length} lifts ticked</div>`;
     $("gy-pickw").hidden = !!fin;
@@ -1273,7 +1296,7 @@ body:not(.locked) #login{display:none}
       <text x="10" y="${h-3}">${esc(shortDate(from))}</text><text x="${w-42}" y="${h-3}" text-anchor="end">${esc(shortDate(k))}</text></svg>`;
   }
   function renderBody(){
-    const B = BODY(); $("bodywin").hidden = !B; $("shotnote").innerHTML = ""; if (!B) return;
+    const B = BODY(); $("bodywin").hidden = $("p-weight").hidden = !B; $("shotnote").innerHTML = ""; if (!B) return;
     const k = today(), st = shotState();
     $("bd-shotw").hidden = !st;
     if (st){
@@ -1339,7 +1362,7 @@ body:not(.locked) #login{display:none}
   }
   let aiImg = null, aiRes = null;   // the resized photo waiting to be estimated, and Claude's last answer
   function renderFood(){
-    const F = FOOD(); $("t-food").hidden = !F; if (!F) return;
+    const F = FOOD(); $("p-food").hidden = !F; if (!F) return;
     const k = today(), T = foodTargets(k), list = foodsOn(k).filter(e => !e.hist), s = foodSum(list);
     const plan = (F.plan||[]).slice().sort((a,b) => a.from < b.from ? -1 : 1), next = plan.find(p => p.from > k);
     $("fd-plan").textContent = [T.name, next ? `${next.cal.toLocaleString()} from ${shortDate(next.from)}` : ""].filter(Boolean).join(" · ");
@@ -1555,14 +1578,41 @@ body:not(.locked) #login{display:none}
   let lastDay = today();
   setInterval(() => { tick(); if (today()!==lastDay){ lastDay=today(); render(); } }, 20000);
 
+  // ---------- tabs ----------
+  // Four tabs along the bottom; Body, Money and Goals hold pages picked with the switch at their top. A page whose
+  // feature isn't in config has its switch button hidden (renderGym and friends do that), and a tab left with no pages hides.
+  const TAB_PAGES = {today:["today"], body:["food","gym","weight"], money:["spend","shop"], goals:["gates","progress","log"]};
+  const OLD_TABS = {status:"today", quests:"today", food:"body/food", gym:"body/gym", gates:"goals/gates", spend:"money/spend", shop:"money/shop", log:"goals/log"};
+  let tab = "today";
+  const pageOf = {today:"today", body:"food", money:"spend", goals:"gates"};   // the page last picked on each tab
+  const livePages = t => TAB_PAGES[t].filter(p => !$("p-"+p)?.hidden);
+  function showTabs(){
+    for (const t of Object.keys(TAB_PAGES)){
+      const live = livePages(t), cur = live.includes(pageOf[t]) ? pageOf[t] : live[0];
+      $("t-"+t).hidden = !live.length;
+      const seg = $("g-"+t).querySelector(".seg"); if (seg) seg.hidden = live.length < 2;
+      for (const p of TAB_PAGES[t]){ $("v-"+p).hidden = p !== cur; $("p-"+p)?.setAttribute("aria-selected", p === cur); }
+    }
+    if ($("t-"+tab).hidden) tab = "today";
+    document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.v === tab));
+    document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== "g-"+tab);
+  }
+  function pickTab(t, p){
+    tab = TAB_PAGES[t] ? t : "today";
+    if (p && TAB_PAGES[tab].includes(p)) pageOf[tab] = p;
+    showTabs();
+    try { localStorage.setItem("sys-tab", tab === "today" ? tab : `${tab}/${pageOf[tab]}`); } catch(_){}
+  }
+
   // ---------- events ----------
   document.querySelector("nav.tabs").addEventListener("click", e => {
     const b = e.target.closest("button[data-v]"); if (!b) return;
-    document.querySelectorAll("nav.tabs button").forEach(x => x.setAttribute("aria-selected", x===b));
-    document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== "v-"+b.dataset.v);
-    try { localStorage.setItem("sys-tab", b.dataset.v); } catch(_){}
-    window.scrollTo(0,0);
+    pickTab(b.dataset.v); window.scrollTo(0,0);
   });
+  document.querySelectorAll(".seg").forEach(s => s.addEventListener("click", e => {
+    const b = e.target.closest("button[data-p]"); if (!b) return;
+    pickTab(tab, b.dataset.p); window.scrollTo(0,0);
+  }));
   $("wh-week").addEventListener("click", e => {
     const b = e.target.closest("[data-whday]"); if (!b || b.disabled) return;
     whSel = b.dataset.whday; renderWhoop();
@@ -1875,7 +1925,10 @@ body:not(.locked) #login{display:none}
   });
 
   // ---------- boot ----------
-  try { const t = localStorage.getItem("sys-tab"); if (t) document.querySelector(`nav.tabs button[data-v="${t}"]`)?.click(); } catch(_){}
+  // the tab and page open last time (names from before the four-tab layout map onto their new homes)
+  try { const s = localStorage.getItem("sys-tab") || "today", [t, p] = (OLD_TABS[s] || s).split("/");
+        if (TAB_PAGES[t]){ tab = t; if (p && TAB_PAGES[t].includes(p)) pageOf[t] = p; } } catch(_){}
+  showTabs();
   tick(); applyDocs();
   const cfg = window.SYSTEM_CONFIG || {};
   if (window.supabase && cfg.supabaseUrl && cfg.supabaseKey){
