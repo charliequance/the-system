@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Gym / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window; Quests ends with the Body window. Single dark theme by design. */
+/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Food / Gym / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window; Quests ends with the Body window. Single dark theme by design. */
 :root{
   --void:#05070d;        /* page ground */
   --panel:#0a1322;       /* window fill */
@@ -217,10 +217,16 @@ button{font:inherit}
 .lift input:disabled{opacity:.6}
 .daypick{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 
+/* food */
+.ai-item{display:grid;grid-template-columns:auto minmax(0,1fr) 72px 60px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(31,74,122,.5);font-size:14px}
+.ai-item.head{font-family:var(--f-display);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);padding-top:0}
+.ai-item input[type=number]{padding:7px 6px;font-size:14px}
+.ai-item input[type=checkbox]{width:18px;height:18px;accent-color:var(--glow)}
+
 /* tabs */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(5,7,13,.94);border-top:1px solid var(--line);backdrop-filter:blur(8px);z-index:5}
 nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
-nav.tabs button{background:none;border:none;color:var(--mute);padding:12px 2px 12px;font-family:var(--f-display);letter-spacing:.06em;font-size:12px;text-transform:uppercase;cursor:pointer;position:relative}
+nav.tabs button{background:none;border:none;color:var(--mute);padding:12px 1px 12px;font-family:var(--f-display);letter-spacing:.03em;font-size:11px;text-transform:uppercase;cursor:pointer;position:relative}
 nav.tabs button[aria-selected=true]{color:var(--glow);text-shadow:0 0 10px var(--glow)}
 nav.tabs button[aria-selected=true]::before{content:"";position:absolute;top:-1px;left:22%;right:22%;height:2px;background:var(--glow);box-shadow:0 0 10px var(--glow)}
 nav.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:-4px}
@@ -416,6 +422,57 @@ body:not(.locked) #login{display:none}
     </div>
   </section>
 
+  <!-- FOOD -->
+  <section class="view" id="v-food" aria-label="Food" hidden>
+    <div class="wrap">
+      <div class="win">
+        <div class="win-title"><span class="bang">!</span>Fuel<span class="wh-day" id="fd-plan"></span></div>
+        <div class="row between"><span class="cond-l">Calories</span><span class="mono"><span class="gold-big" id="fd-cal">0</span> <span class="sub" id="fd-cal-t"></span></span></div>
+        <div class="bar" style="margin-top:6px" id="fd-cal-barw"><i id="fd-cal-bar" style="width:0%"></i></div>
+        <div class="row between" style="margin-top:12px"><span class="cond-l">Protein</span><span class="mono"><span class="gold-big" id="fd-pro">0</span> <span class="sub" id="fd-pro-t"></span></span></div>
+        <div class="bar" style="margin-top:6px"><i id="fd-pro-bar" style="width:0%"></i></div>
+        <div class="sub" id="fd-left" style="margin-top:8px"></div>
+        <div id="fd-warn"></div>
+      </div>
+      <div class="win" id="fd-aiw" hidden>
+        <div class="win-title">Describe it or snap it</div>
+        <form class="form" id="aiform">
+          <label class="f" for="ai-text">What you ate<textarea id="ai-text" rows="2" placeholder="2 eggs, toast with butter, a Premier shake"></textarea></label>
+          <div class="two">
+            <label class="btn" for="ai-photo" style="text-align:center;cursor:pointer">Add photo<input id="ai-photo" type="file" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none"></label>
+            <button class="btn solid" type="submit" id="ai-go">Estimate</button>
+          </div>
+          <div class="sub" id="ai-photo-l"></div>
+          <div class="sub neg" id="ai-err"></div>
+        </form>
+        <div id="ai-out"></div>
+      </div>
+      <div class="win">
+        <div class="win-title">Add food</div>
+        <form class="form" id="foodform">
+          <label class="f" for="fd-what">What<input id="fd-what" type="text" placeholder="Chicken wrap"></label>
+          <div class="two">
+            <label class="f" for="fd-kcal">Calories<input id="fd-kcal" type="number" inputmode="numeric" step="10" min="0" placeholder="0"></label>
+            <label class="f" for="fd-g">Protein (g)<input id="fd-g" type="number" inputmode="numeric" step="1" min="0" placeholder="0"></label>
+          </div>
+          <div class="sub neg" id="fd-err"></div>
+          <div class="two"><button class="btn" type="button" id="fd-copy">Copy yesterday</button><button class="btn solid" type="submit">Add</button></div>
+        </form>
+        <div class="goal-h">YOUR USUALS</div>
+        <div class="daypick" id="fd-usual"></div>
+      </div>
+      <div class="win">
+        <div class="win-title">Today's food</div>
+        <div id="fd-list"></div>
+      </div>
+      <div class="win">
+        <div class="win-title">Last 7 days</div>
+        <div class="week" id="fd-week"></div>
+        <div class="sub" id="fd-avg" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- GYM -->
   <section class="view" id="v-gym" aria-label="Gym" hidden>
     <div class="wrap">
@@ -576,6 +633,7 @@ body:not(.locked) #login{display:none}
 <nav class="tabs" aria-label="Sections"><div class="in" role="tablist">
   <button role="tab" id="t-status" aria-selected="true" data-v="status">Status</button>
   <button role="tab" id="t-quests" aria-selected="false" data-v="quests">Quests</button>
+  <button role="tab" id="t-food" aria-selected="false" data-v="food" hidden>Food</button>
   <button role="tab" id="t-gym" aria-selected="false" data-v="gym" hidden>Gym</button>
   <button role="tab" id="t-gates" aria-selected="false" data-v="gates">Gates</button>
   <button role="tab" id="t-spend" aria-selected="false" data-v="spend" hidden>Spend</button>
@@ -658,6 +716,10 @@ body:not(.locked) #login{display:none}
   // Weigh-ins are day doc `weight` (the Quests input), waist is day doc `waist`, shots are "shot" entries (dose, unit), creatine is quest "crea".
   // body/history holds what came over from the Recomp Log ({weights, waist, crea, shots}); a day doc wins over it on the same day.
   const BODY = () => config?.body || null;
+  // The Food tab switches on when system/config has food:{plan:[{from, name, cal, pro, floor}], proFloor, usual:[{text, cal, pro}], ai}.
+  // Each plan entry holds from its date on, so a target change can be set ahead. Foods are "food" entries (text, cal, pro) on the day;
+  // body/history.food holds the Recomp Log's days. ai:true shows "Describe it or snap it", which calls the food-estimate Edge Function.
+  const FOOD = () => config?.food?.plan?.length ? config.food : null;
   // The week report grades XP against player.weeklyXpTarget (a realistic week, not a perfect one).
   const XP_TARGET = () => config?.player?.weeklyXpTarget || 1000;
   const GRADES = [[1.25,"S"],[1,"A"],[.8,"B"],[.6,"C"],[.4,"D"],[0,"E"]];
@@ -961,7 +1023,7 @@ body:not(.locked) #login{display:none}
       <button class="btn tiny${gold>=r.cost?" solid":""}" data-buy="${esc(r.id)}" ${gold>=r.cost?"":"disabled"}>${gold>=r.cost?"Redeem":"Locked"}</button></div>`).join("");
     $("t-spend").hidden = !SPEND();
     if (SPEND()) renderSpend(sp);
-    renderReport(sp); renderDebt(); renderWhoop(); renderGym(); renderBody();
+    renderReport(sp); renderDebt(); renderWhoop(); renderGym(); renderBody(); renderFood();
     const red = (progress.redeemed||[]).slice().reverse().slice(0,10);
     $("redeemed").innerHTML = red.length ? red.map(r => `<div class="entry"><span class="tag">Reward</span><div class="grow">${esc(r.name)}<small>${esc(r.day||"")}</small></div><span class="amt">−${r.cost} G</span></div>`).join("")
       : `<div class="empty">Nothing redeemed yet. Clear quests to earn gold.</div>`;
@@ -1027,9 +1089,9 @@ body:not(.locked) #login{display:none}
         <div class="edit" id="ed-${esc(m.id)}" hidden><input type="number" inputmode="decimal" id="edin-${esc(m.id)}" value="${cur ?? ""}" aria-label="New value for ${esc(m.title)}"><button class="btn tiny solid" data-save="${esc(m.id)}">Save</button></div></div>`;
     }).join("") : `<div class="empty">No main quests yet. Claude adds your goals here.</div>`;
 
-    // entries
+    // entries (food has its own tab, so it stays out of this list)
     const all = [];
-    for (const kk of Object.keys(days).sort().reverse()) (days[kk].entries||[]).forEach((e, i) => all.unshift({...e, day:kk, i}));
+    for (const kk of Object.keys(days).sort().reverse()) (days[kk].entries||[]).forEach((e, i) => { if (e.type !== "food") all.unshift({...e, day:kk, i}); });
     all.sort((a,b) => a.day===b.day ? b.i-a.i : a.day<b.day ? 1 : -1);
     $("entries").innerHTML = all.length ? all.slice(0,25).map(e => {
       const amt = typeof e.amount==="number" ? e.amount : null;
@@ -1251,6 +1313,102 @@ body:not(.locked) #login{display:none}
     if (cq){ const on = new Set((bodyHist?.crea||[]).concat(Object.keys(days).filter(x => days[x].q?.crea)));
       let n = 0; for (let i=0;i<7;i++) if (on.has(addDays(k, -i))) n++;
       $("bd-crea").textContent = `${n} of the last 7 days`; }
+  }
+
+  // ---------- food ----------
+  function foodTargets(k){
+    const plan = (FOOD()?.plan || []).slice().sort((a,b) => a.from < b.from ? -1 : 1);
+    return plan.filter(p => p.from <= k).pop() || plan[0];
+  }
+  // A day's foods: its "food" entries, or the Recomp Log's list for days from before the move
+  function foodsOn(k){
+    const mine = (days[k]?.entries||[]).filter(e => e.type==="food");
+    return mine.length ? mine : (bodyHist?.food?.[k] || []).map(e => ({text:e.name, cal:e.cal, pro:e.pro, hist:true}));
+  }
+  const foodSum = list => list.reduce((t, e) => ({cal:t.cal + (Number(e.cal)||0), pro:t.pro + (Number(e.pro)||0)}), {cal:0, pro:0});
+  // Usuals: the pinned ones first, then whatever was logged most over the last 4 weeks (latest numbers win)
+  function usualFoods(k){
+    const seen = new Map();
+    for (const u of (FOOD()?.usual || [])) seen.set(u.text.toLowerCase(), {...u, n:1e9});
+    for (let i = 27; i >= 0; i--) for (const e of foodsOn(addDays(k, -i))){
+      const key = String(e.text||"").trim().toLowerCase(); if (!key) continue;
+      const u = seen.get(key) || {text:String(e.text).trim(), n:0};
+      seen.set(key, {...u, cal:e.cal, pro:e.pro, n:u.n + 1});
+    }
+    return [...seen.values()].filter(u => u.n > 1 || u.n >= 1e9).sort((a,b) => b.n - a.n).slice(0, 8);
+  }
+  let aiImg = null, aiRes = null;   // the resized photo waiting to be estimated, and Claude's last answer
+  function renderFood(){
+    const F = FOOD(); $("t-food").hidden = !F; if (!F) return;
+    const k = today(), T = foodTargets(k), list = foodsOn(k).filter(e => !e.hist), s = foodSum(list);
+    const plan = (F.plan||[]).slice().sort((a,b) => a.from < b.from ? -1 : 1), next = plan.find(p => p.from > k);
+    $("fd-plan").textContent = [T.name, next ? `${next.cal.toLocaleString()} from ${shortDate(next.from)}` : ""].filter(Boolean).join(" · ");
+    $("fd-cal").textContent = Math.round(s.cal).toLocaleString(); $("fd-cal-t").textContent = `/ ${T.cal.toLocaleString()} kcal`;
+    $("fd-pro").textContent = Math.round(s.pro); $("fd-pro-t").textContent = `/ ${T.pro} g`;
+    $("fd-cal-bar").style.width = Math.min(100, s.cal/T.cal*100)+"%"; $("fd-cal-barw").className = "bar" + (s.cal > T.cal*1.1 ? " red" : "");
+    $("fd-pro-bar").style.width = Math.min(100, s.pro/T.pro*100)+"%";
+    const cl = Math.round(T.cal - s.cal), pl = Math.round(T.pro - s.pro);
+    $("fd-left").textContent = !list.length ? "Nothing logged yet today." : [cl > 0 ? `${cl.toLocaleString()} kcal left` : `${(-cl).toLocaleString()} kcal over`,
+      pl > 0 ? `${pl} g protein to go` : "protein goal hit"].join(" · ");
+    // warnings: three logged days in a row under the floor, and the low-appetite days right after a shot
+    const proFloor = F.proFloor || 130, back = [1,2,3].map(i => addDays(k, -i)).map(x => ({x, l:foodsOn(x), t:foodTargets(x)}));
+    const low = back.every(b => b.l.length && (foodSum(b.l).cal < b.t.floor || foodSum(b.l).pro < proFloor));
+    const st = shotState(), since = st?.last ? daysBetween(st.last.day, k) : null;
+    $("fd-warn").innerHTML = (low ? `<div class="warn">Three days in a row under ${T.floor.toLocaleString()} kcal or ${proFloor} g protein. Eating this little on reta costs muscle. Add a shake or a real meal today.</div>` : "")
+      + (since !== null && since >= 0 && since <= 2 && !st.over ? `<div class="sub" style="margin-top:8px">Low-appetite days after your shot. Shakes are the easy way to get your protein in.</div>` : "");
+
+    const us = usualFoods(k);
+    $("fd-usual").innerHTML = us.length ? us.map((u, i) => `<button class="btn tiny" type="button" data-usual="${i}">${esc(u.text)} · ${Math.round(u.cal)} · ${Math.round(u.pro)} g</button>`).join("")
+      : `<div class="empty">Foods you log twice show up here for one tap.</div>`;
+    $("fd-usual").dataset.list = JSON.stringify(us.map(u => ({text:u.text, cal:u.cal, pro:u.pro})));
+    $("fd-list").innerHTML = list.length ? list.slice().reverse().map(e => `<div class="entry"><span class="tag">${e.src==="claude" ? "Claude" : "Food"}</span><div class="grow">${esc(e.text)}<small>${Math.round(e.pro)} g protein</small></div>
+      <span class="amt">${Math.round(e.cal)} kcal</span><button class="btn tiny" type="button" data-fdel="${esc(e.ts)}" aria-label="Delete ${esc(e.text)}">✕</button></div>`).join("")
+      : `<div class="empty">Log every meal, shake and snack. Usuals are one tap.</div>`;
+
+    let wk = "", n = 0, tc = 0, tp = 0;
+    for (let i = 6; i >= 0; i--){ const kk = addDays(k, -i), l = foodsOn(kk), t = foodSum(l), tg = foodTargets(kk);
+      if (l.length && kk !== k){ n++; tc += t.cal; tp += t.pro; }
+      const cls = !l.length ? "" : t.pro >= tg.pro ? "full" : "part";
+      wk += `<div><div class="d">${"SMTWTFS"[parseKey(kk).getDay()]}</div><div class="c ${cls}${kk===k?" today":""}" title="${esc(shortDate(kk))}: ${Math.round(t.cal)} kcal, ${Math.round(t.pro)} g">${l.length ? (t.cal/1000).toFixed(1)+"k" : "–"}</div></div>`; }
+    $("fd-week").innerHTML = wk;
+    $("fd-avg").textContent = n ? `Logged ${n} of the last 6 days · average ${Math.round(tc/n).toLocaleString()} kcal and ${Math.round(tp/n)} g protein. Filled boxes hit protein.`
+      : "Boxes fill in when a day hits protein. Calories show in thousands.";
+    $("fd-aiw").hidden = !F.ai;
+  }
+  function renderAi(){
+    const out = $("ai-out"), r = aiRes;
+    if (!r){ out.innerHTML = ""; return; }
+    if (!r.items.length){ out.innerHTML = `<div class="sub" style="margin-top:10px">${esc(r.note || "Claude didn't find any food in that.")}</div>`; return; }
+    out.innerHTML = `<div style="margin-top:10px"><div class="ai-item head"><span></span><span>Item</span><span>kcal</span><span>Protein</span></div>`
+      + r.items.map((x, i) => `<div class="ai-item"><input type="checkbox" data-aion="${i}" ${x.on ? "checked" : ""} aria-label="Include ${esc(x.name)}"><span>${esc(x.name)}</span>
+        <input type="number" inputmode="numeric" step="10" min="0" data-aical="${i}" value="${x.cal}" aria-label="${esc(x.name)} calories">
+        <input type="number" inputmode="numeric" step="1" min="0" data-aipro="${i}" value="${x.pro}" aria-label="${esc(x.name)} protein in grams"></div>`).join("")
+      + `${r.note ? `<div class="sub" style="margin-top:6px">${esc(r.note)}</div>` : ""}
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-top:10px"><button class="btn" type="button" id="ai-clear">Clear</button><button class="btn solid" type="button" id="ai-add"></button></div></div>`;
+    aiTotal();
+  }
+  function aiTotal(){
+    const on = aiRes.items.filter(x => x.on), t = foodSum(on), b = $("ai-add"); if (!b) return;
+    b.textContent = on.length ? `Add ${Math.round(t.cal).toLocaleString()} kcal · ${Math.round(t.pro)} g` : "Tick something to add";
+  }
+  // Phone photos are big; 1280 px on the long side is plenty to read a plate or a label.
+  function shrinkPhoto(file, max){
+    return new Promise((ok, no) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => { const s = Math.min(1, max/Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        ok(c.toDataURL("image/jpeg", 0.82).split(",")[1]); };
+      img.onerror = () => { URL.revokeObjectURL(url); no(new Error("unreadable")); };
+      img.src = url;
+    });
+  }
+  function addFoods(items, src){
+    const k = today(), d = days[k] || {entries:[]}, ts = Date.now();
+    const add = items.map((x, i) => ({type:"food", text:String(x.text).trim(), cal:Math.max(0, Math.round(Number(x.cal)||0)), pro:Math.max(0, Math.round(Number(x.pro)||0)), ts:ts+i, ...(src ? {src} : {})}));
+    saveDay(k, {entries:(d.entries||[]).concat(add)});
+    const t = foodSum(foodsOn(k)), T = foodTargets(k);
+    toast(`${add.length===1 ? esc(add[0].text) : `${add.length} foods`} added · <b>${Math.round(t.cal).toLocaleString()} / ${T.cal.toLocaleString()} kcal</b> · ${Math.round(t.pro)} g protein`);
   }
 
   // ---------- Whoop (read-only) ----------
@@ -1565,6 +1723,69 @@ body:not(.locked) #login{display:none}
     saveDay(k, {entries:(d.entries||[]).filter(x => x !== gone)});
     if (gone.type==="debt") restoreDebt(gone);
     toast(gone.type==="cashout" ? `Cash-out undone · <b>−${(gone.gold||0).toLocaleString()} G</b>` : gone.type==="debt" ? "Debt payment undone" : "Purchase deleted");
+  });
+
+  $("foodform").addEventListener("submit", e => {
+    e.preventDefault();
+    const text = $("fd-what").value.trim(), cal = $("fd-kcal").value, pro = $("fd-g").value;
+    if (!text){ $("fd-err").textContent = "Say what it was."; $("fd-what").focus(); return; }
+    if (cal === "" || !(Number(cal) >= 0)){ $("fd-err").textContent = "Add the calories, even a rough guess."; $("fd-kcal").focus(); return; }
+    $("fd-err").textContent = "";
+    addFoods([{text, cal, pro: pro === "" ? 0 : pro}]);
+    $("fd-what").value = ""; $("fd-kcal").value = ""; $("fd-g").value = "";
+  });
+  ["fd-what", "fd-kcal"].forEach(id => $(id).addEventListener("input", () => { $("fd-err").textContent = ""; }));
+  $("fd-copy").addEventListener("click", () => {
+    const y = foodsOn(addDays(today(), -1));
+    if (!y.length){ toast("Nothing logged yesterday"); return; }
+    if (foodsOn(today()).some(e => !e.hist) && !confirm(`Add all ${y.length} of yesterday's foods on top of today's?`)) return;
+    addFoods(y);
+  });
+  $("fd-usual").addEventListener("click", e => {
+    const b = e.target.closest("[data-usual]"); if (!b) return;
+    const u = JSON.parse($("fd-usual").dataset.list || "[]")[Number(b.dataset.usual)]; if (u) addFoods([u]);
+  });
+  $("fd-list").addEventListener("click", e => {
+    const b = e.target.closest("[data-fdel]"); if (!b) return;
+    const k = today(), d = days[k], gone = (d?.entries||[]).find(x => x.type==="food" && String(x.ts)===b.dataset.fdel); if (!gone) return;
+    saveDay(k, {entries:d.entries.filter(x => x !== gone)});
+    toast(`Removed ${esc(gone.text)}`);
+  });
+  $("ai-photo").addEventListener("change", async e => {
+    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+    $("ai-photo-l").textContent = "Getting the photo ready…"; $("ai-err").textContent = "";
+    try { aiImg = await shrinkPhoto(f, 1280); $("ai-photo-l").textContent = "Photo added. A few words help, like the size or what's inside."; }
+    catch (_) { aiImg = null; $("ai-photo-l").textContent = "Couldn't read that photo. Try another one."; }
+  });
+  $("ai-text").addEventListener("input", () => { $("ai-err").textContent = ""; });
+  $("aiform").addEventListener("submit", async e => {
+    e.preventDefault();
+    const text = $("ai-text").value.trim();
+    if (!text && !aiImg){ $("ai-err").textContent = "Describe it or add a photo first."; $("ai-text").focus(); return; }
+    if (!sb || !session){ $("ai-err").textContent = "Claude needs a connection to the System. Try again when you're online."; return; }
+    const go = $("ai-go"); go.disabled = true; go.textContent = "Estimating…"; $("ai-err").textContent = "";
+    try {
+      const { data, error } = await sb.functions.invoke("food-estimate", { body: { text, image: aiImg || undefined } });
+      if (error){ let msg = "Couldn't reach Claude. Try again."; try { msg = (await error.context?.json())?.error || msg; } catch(_){} throw new Error(msg); }
+      aiRes = {items:(data?.items||[]).map(x => ({...x, on:true})), note:data?.note || ""};
+      renderAi();
+    } catch (err) { $("ai-err").textContent = err.message; }
+    finally { go.disabled = false; go.textContent = "Estimate"; }
+  });
+  $("ai-out").addEventListener("input", e => {
+    const t = e.target, i = Number(t.dataset.aical ?? t.dataset.aipro); if (!aiRes || !isFinite(i)) return;
+    aiRes.items[i][t.dataset.aical !== undefined ? "cal" : "pro"] = Number(t.value) || 0; aiTotal();
+  });
+  $("ai-out").addEventListener("change", e => {
+    const t = e.target; if (!aiRes || t.dataset.aion === undefined) return;
+    aiRes.items[Number(t.dataset.aion)].on = t.checked; aiTotal();
+  });
+  $("ai-out").addEventListener("click", e => {
+    if (e.target.closest("#ai-clear")){ aiRes = null; renderAi(); return; }
+    if (!e.target.closest("#ai-add") || !aiRes) return;
+    const on = aiRes.items.filter(x => x.on); if (!on.length) return;
+    addFoods(on.map(x => ({text:x.name, cal:x.cal, pro:x.pro})), "claude");
+    aiRes = null; aiImg = null; $("ai-text").value = ""; $("ai-photo-l").textContent = ""; renderAi();
   });
 
   $("shotform").addEventListener("submit", e => {
