@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window. Single dark theme by design. */
+/* Layout: one phone column of glowing "System" windows; bottom tab bar switches Status / Quests / Gym / Gates / Spend / Shop / Log. Status also shows Whoop's Condition window. Single dark theme by design. */
 :root{
   --void:#05070d;        /* page ground */
   --panel:#0a1322;       /* window fill */
@@ -210,6 +210,13 @@ button{font:inherit}
 .week .c.sel{outline:1px solid var(--glow);outline-offset:2px}
 .week button.c:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
+/* gym */
+.quest.haslift{border-bottom:none;padding-bottom:2px}
+.lift{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 4px 10px 40px;border-bottom:1px solid rgba(31,74,122,.5)}
+.lift:last-child{border-bottom:none}
+.lift input:disabled{opacity:.6}
+.daypick{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+
 /* tabs */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(5,7,13,.94);border-top:1px solid var(--line);backdrop-filter:blur(8px);z-index:5}
 nav.tabs .in{max-width:560px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
@@ -378,6 +385,37 @@ body:not(.locked) #login{display:none}
     </div>
   </section>
 
+  <!-- GYM -->
+  <section class="view" id="v-gym" aria-label="Gym" hidden>
+    <div class="wrap">
+      <div class="win">
+        <div class="win-title"><span class="bang">!</span><span id="gy-title">Next up</span></div>
+        <div class="banner"><div class="q" id="gy-q">[ Day 1 ]</div><div class="n" id="gy-name">Gym</div></div>
+        <div class="sub" id="gy-focus" style="text-align:center;margin-top:2px"></div>
+        <div id="gy-list" style="margin-top:8px"></div>
+        <div id="gy-foot"></div>
+        <div id="gy-pickw">
+          <div class="goal-h">DO A DIFFERENT DAY</div>
+          <div class="daypick" id="gy-pick"></div>
+        </div>
+      </div>
+      <div class="win">
+        <div class="win-title">This week</div>
+        <div class="row between"><span class="sub">Sessions this week</span><span class="mono" id="gy-wk-n">0 / 4</span></div>
+        <div class="week" id="gy-week" style="margin-top:8px"></div>
+        <div class="sub" id="gy-mq" style="margin-top:10px" hidden></div>
+      </div>
+      <div class="win">
+        <div class="win-title">Key lifts</div>
+        <div id="gy-lifts"></div>
+      </div>
+      <div class="win" id="gy-rulesw">
+        <div class="win-title">How it works</div>
+        <div id="gy-rules"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- GATES -->
   <section class="view" id="v-gates" aria-label="Gates and main quests" hidden>
     <div class="wrap">
@@ -507,6 +545,7 @@ body:not(.locked) #login{display:none}
 <nav class="tabs" aria-label="Sections"><div class="in" role="tablist">
   <button role="tab" id="t-status" aria-selected="true" data-v="status">Status</button>
   <button role="tab" id="t-quests" aria-selected="false" data-v="quests">Quests</button>
+  <button role="tab" id="t-gym" aria-selected="false" data-v="gym" hidden>Gym</button>
   <button role="tab" id="t-gates" aria-selected="false" data-v="gates">Gates</button>
   <button role="tab" id="t-spend" aria-selected="false" data-v="spend" hidden>Spend</button>
   <button role="tab" id="t-shop" aria-selected="false" data-v="shop">Shop</button>
@@ -579,6 +618,11 @@ body:not(.locked) #login{display:none}
   const DEBT = () => config?.debt || null;
   const debtQuest = () => (config?.mainQuests||[]).find(m => m.id === DEBT()?.quest) || null;
   const debtBalance = () => { const m = debtQuest(); return m ? Number(progress.values?.[m.id] ?? m.current ?? m.start) : null; };
+  // The Gym tab switches on when system/config has gym:{days:[{id, name, focus, ex:[{id, slot, name, sets, key?, quest?}]}], perWeek, rules}.
+  // Days run in order: next up is the day after the last one finished, so a missed day skips nothing.
+  // Today's ticks and top sets sit on the day doc as gym:{session, done:{exId:true}, lifts:{exId:{w, r}}} until Finish,
+  // which adds a "workout" entry (session, done, lifts) and ticks "train", the same as recording a workout in the Log.
+  const GYM = () => config?.gym?.days?.length ? config.gym : null;
   // The week report grades XP against player.weeklyXpTarget (a realistic week, not a perfect one).
   const XP_TARGET = () => config?.player?.weeklyXpTarget || 1000;
   const GRADES = [[1.25,"S"],[1,"A"],[.8,"B"],[.6,"C"],[.4,"D"],[0,"E"]];
@@ -881,7 +925,7 @@ body:not(.locked) #login{display:none}
       <button class="btn tiny${gold>=r.cost?" solid":""}" data-buy="${esc(r.id)}" ${gold>=r.cost?"":"disabled"}>${gold>=r.cost?"Redeem":"Locked"}</button></div>`).join("");
     $("t-spend").hidden = !SPEND();
     if (SPEND()) renderSpend(sp);
-    renderReport(sp); renderDebt(); renderWhoop();
+    renderReport(sp); renderDebt(); renderWhoop(); renderGym();
     const red = (progress.redeemed||[]).slice().reverse().slice(0,10);
     $("redeemed").innerHTML = red.length ? red.map(r => `<div class="entry"><span class="tag">Reward</span><div class="grow">${esc(r.name)}<small>${esc(r.day||"")}</small></div><span class="amt">−${r.cost} G</span></div>`).join("")
       : `<div class="empty">Nothing redeemed yet. Clear quests to earn gold.</div>`;
@@ -1007,6 +1051,92 @@ body:not(.locked) #login{display:none}
     pays.sort((a,b) => a.day===b.day ? (b.ts||0)-(a.ts||0) : a.day<b.day ? 1 : -1);
     $("dt-list").innerHTML = pays.slice(0, 5).map(e => `<div class="entry"><span class="tag">Debt</span><div class="grow">${cash(e.amount)} paid<small>${esc(shortDate(e.day))}</small></div>
       <span class="amt pos">+${logXp(e)} XP</span><button class="btn tiny" type="button" data-del="${esc(e.day)}|${esc(e.ts)}" aria-label="Undo debt payment of ${cash(e.amount)}">✕</button></div>`).join("");
+  }
+
+  // ---------- gym ----------
+  function gymLog(){
+    const out = [];
+    for (const k of Object.keys(days).sort()) for (const e of (days[k].entries||[])) if (e.type==="workout" && e.session) out.push({...e, day:k});
+    return out;
+  }
+  function gymNext(log){
+    const G = GYM(), last = log[log.length-1], i = last ? G.days.findIndex(x => x.id===last.session) : -1;
+    return G.days[(i+1) % G.days.length];
+  }
+  // A draft for today: the day already picked or started, else next up.
+  function gymDraft(){
+    const d = days[today()] || {};
+    return d.gym?.session ? JSON.parse(JSON.stringify(d.gym)) : {session:gymNext(gymLog()).id, done:{}, lifts:{}};
+  }
+  const topReps = sets => Number(String(sets).match(/(\d+)(?!.*\d)/)?.[1]) || null;   // "3 x 5-8" → 8
+  const est1rm = s => Math.round(s.w*(1+s.r/30));                                      // Epley
+  const liftSets = (log, id) => log.filter(e => e.lifts?.[id]?.w > 0 && e.lifts[id].r > 0).map(e => ({...e.lifts[id], day:e.day}));
+  // Main quest dates are written like "Dec 31" or "Mar 1, 2027"; no year means this year.
+  const MONTHS = "janfebmaraprmayjunjulaugsepoctnovdec";
+  const byKey = s => { const m = String(s||"").match(/^([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?/i), i = m ? MONTHS.indexOf(m[1].toLowerCase()) : -1;
+    return i < 0 || i % 3 ? null : keyOf(new Date(Number(m[3]) || new Date().getFullYear(), i/3, Number(m[2]))); };
+  function renderGym(){
+    const G = GYM(); $("t-gym").hidden = !G; if (!G) return;
+    const k = today(), d = days[k] || {}, log = gymLog(), next = gymNext(log);
+    const fin = log.filter(e => e.day===k).pop() || null;
+    const sess = G.days.find(x => x.id===(fin ? fin.session : d.gym?.session)) || next;
+    const g = fin ? {done:fin.done||{}, lifts:fin.lifts||{}} : d.gym?.session===sess.id ? d.gym : {done:{}, lifts:{}};
+    $("gy-title").textContent = fin ? "Workout cleared" : "Next up";
+    $("gy-q").textContent = `[ Day ${G.days.indexOf(sess)+1} of ${G.days.length} ]`;
+    $("gy-name").textContent = sess.name;
+    $("gy-focus").textContent = sess.focus || "";
+    const before = log.filter(e => e.day < k);
+    const rows = sess.ex.map(x => {
+      const prev = x.key ? liftSets(before, x.id).pop() : null, top = topReps(x.sets);
+      return {x, prev, on:!!g.done?.[x.id], cue: prev ? `Last ${prev.w} × ${prev.r}${top && prev.r >= top ? ", go up 5 lb" : ""}` : ""};
+    });
+    // Rebuild the list only when what it shows changes, so a re-render never steals focus from a half-typed top set.
+    const list = $("gy-list"), sig = JSON.stringify([sess.id, !!fin, rows.map(r => [r.x.id, r.on, r.cue])]);
+    if (list.dataset.sig !== sig){
+      list.dataset.sig = sig;
+      list.innerHTML = rows.map(({x, prev, on, cue}) => `<label class="quest${on?" done":""}${x.key?" haslift":""}" for="gx-${esc(x.id)}">
+        <input type="checkbox" id="gx-${esc(x.id)}" data-gx="${esc(x.id)}" ${on?"checked":""} ${fin?"disabled":""}>
+        <span class="box" aria-hidden="true"></span>
+        <span class="txt"><b>${esc(x.name)}</b><small>${esc([x.sets, x.key ? "Key lift" : "", cue].filter(Boolean).join(" · "))}</small></span>
+        <span class="xp" style="color:var(--mute)">${esc(x.slot||"")}</span></label>`
+        + (x.key ? `<div class="lift"><label class="f">Top set (lb)<input type="number" inputmode="decimal" step="2.5" min="0" data-gw="${esc(x.id)}" placeholder="${esc(prev?.w ?? "")}" ${fin?"disabled":""}></label>
+        <label class="f">Reps<input type="number" inputmode="numeric" step="1" min="0" data-gr="${esc(x.id)}" placeholder="${esc(prev?.r ?? "")}" ${fin?"disabled":""}></label></div>` : "")).join("");
+    }
+    list.querySelectorAll("[data-gw],[data-gr]").forEach(el => { if (el === document.activeElement) return;
+      const v = (g.lifts?.[el.dataset.gw || el.dataset.gr] || {})[el.dataset.gw ? "w" : "r"]; el.value = v ?? ""; });
+    const ticked = rows.filter(r => r.on).length, trainXp = daily().find(q => q.id==="train")?.xp || 0;
+    $("gy-foot").innerHTML = fin
+      ? `<div class="reward">${esc(sess.name)} day complete · ${ticked} of ${rows.length} lifts</div>
+        <div class="sub" style="text-align:center;margin-top:4px">Next time: Day ${G.days.indexOf(next)+1} · ${esc(next.name)}. Logged by mistake? Delete it in the Log tab.</div>`
+      : `<button class="btn solid" type="button" id="gy-finish" style="width:100%;margin-top:12px">Finish workout${trainXp && !d.q?.train ? ` · +${trainXp} XP` : ""}</button>
+        <div class="sub" style="text-align:center;margin-top:6px">${ticked} of ${rows.length} lifts ticked</div>`;
+    $("gy-pickw").hidden = !!fin;
+    $("gy-pick").innerHTML = G.days.map((x, i) => `<button class="btn tiny${x.id===sess.id?" solid":""}" type="button" data-gday="${esc(x.id)}" aria-pressed="${x.id===sess.id}">${i+1} · ${esc(x.name)}</button>`).join("");
+
+    // this week: a box per day, numbered by the gym day done (✓ for a workout recorded in the Log)
+    const mon = mondayOf(k), per = G.perWeek || 4; let wk = "", n = 0;
+    for (let i=0;i<7;i++){ const kk = addDays(mon, i), e = log.filter(x => x.day===kk).pop(), t = !!days[kk]?.q?.train; if (t) n++;
+      const lab = e ? String(G.days.findIndex(x => x.id===e.session)+1 || "✓") : t ? "✓" : "";
+      wk += `<div><div class="d">${"MTWTFSS"[i]}</div><div class="c${t?" full":""}${kk===k?" today":""}">${lab}</div></div>`; }
+    $("gy-week").innerHTML = wk;
+    $("gy-wk-n").textContent = `${n} / ${per}`;
+    const mq = (config?.mainQuests||[]).find(m => m.source==="quest" && m.quest==="train");
+    let mqt = "";
+    if (mq){ const c = Object.keys(days).filter(x => (!mq.since || x >= mq.since) && days[x].q?.train).length, end = byKey(mq.by);
+      const left = Math.max(0, (mq.target||0) - c), weeks = end ? (daysBetween(k, end)+1)/7 : 0;
+      mqt = `${mq.title}: ${c} of ${mq.target}` + (!left ? ", cleared" : weeks > 0 ? `, about ${(left/weeks).toFixed(1)} a week from here to hit it by ${mq.by}` : ""); }
+    $("gy-mq").textContent = mqt; $("gy-mq").hidden = !mqt;
+
+    const keys = G.days.flatMap(x => x.ex.filter(e => e.key).map(e => ({...e, day:x.name})));
+    $("gy-lifts").innerHTML = keys.length ? keys.map(x => {
+      const s = liftSets(log, x.id), last = s[s.length-1], best = s.reduce((b, v) => !b || est1rm(v) > est1rm(b) ? v : b, null);
+      const q = x.quest && (config?.mainQuests||[]).find(m => m.id===x.quest);
+      const sub = [last ? `Last ${last.w} × ${last.r} on ${shortDate(last.day)}` : "No top set logged yet", q ? `goal ${q.target} ${q.unit||""}${q.by ? " by "+q.by : ""}` : ""].filter(Boolean).join(" · ");
+      return `<div class="entry"><span class="tag">${esc(x.day)}</span><div class="grow">${esc(x.name)}<small>${esc(sub)}</small></div>
+        ${best ? `<span class="amt" title="Estimated one-rep max from your best top set">~${est1rm(best)} max</span>` : ""}</div>`;
+    }).join("") : `<div class="empty">Key lifts in the gym plan show here.</div>`;
+    $("gy-rulesw").hidden = !(G.rules||[]).length;
+    $("gy-rules").innerHTML = (G.rules||[]).map(r => `<div class="entry"><div class="grow">${esc(r)}</div></div>`).join("");
   }
 
   // ---------- Whoop (read-only) ----------
@@ -1322,6 +1452,46 @@ body:not(.locked) #login{display:none}
     if (gone.type==="debt") restoreDebt(gone);
     toast(gone.type==="cashout" ? `Cash-out undone · <b>−${(gone.gold||0).toLocaleString()} G</b>` : gone.type==="debt" ? "Debt payment undone" : "Purchase deleted");
   });
+
+  // Ticks and top sets save to today's day doc as they happen, so closing the app mid-workout loses nothing.
+  $("v-gym").addEventListener("change", e => {
+    const t = e.target; if (!GYM() || gymLog().some(x => x.day===today())) return;
+    const g = gymDraft();
+    if (t.dataset.gx){ g.done[t.dataset.gx] = t.checked; saveDay(today(), {gym:g}); return; }
+    const id = t.dataset.gw || t.dataset.gr; if (!id) return;
+    const v = t.value==="" ? null : Number(t.value); if (v!==null && !(v >= 0)) return;
+    g.lifts[id] = Object.assign({}, g.lifts[id], {[t.dataset.gw ? "w" : "r"]: v});
+    saveDay(today(), {gym:g});
+  });
+  $("v-gym").addEventListener("click", e => {
+    const p = e.target.closest("[data-gday]");
+    if (p){
+      const g = gymDraft(), id = p.dataset.gday; if (g.session===id) return;
+      if ((Object.values(g.done).some(Boolean) || Object.keys(g.lifts).length) && !confirm("Switch days? Today's ticks and top sets clear.")) return;
+      saveDay(today(), {gym:{session:id, done:{}, lifts:{}}});
+      toast(`Today: <b>${esc(GYM().days.find(x => x.id===id)?.name || "")}</b>`);
+      return;
+    }
+    if (e.target.closest("#gy-finish")) finishGym();
+  });
+  function finishGym(){
+    const G = GYM(), k = today(), d = days[k] || {}, log = gymLog();
+    if (!G || log.some(x => x.day===k)) return;
+    const g = gymDraft(), sess = G.days.find(x => x.id===g.session) || gymNext(log);
+    const half = sess.ex.find(x => x.key && g.lifts[x.id] && (g.lifts[x.id].w > 0) !== (g.lifts[x.id].r > 0));
+    if (half){ const miss = g.lifts[half.id].w > 0 ? "r" : "w";
+      toast(`Add the ${miss==="r" ? "reps" : "weight"} for your ${esc(half.name)} top set`); document.querySelector(`[data-g${miss}="${half.id}"]`)?.focus(); return; }
+    const done = sess.ex.filter(x => g.done[x.id]).map(x => x.id);
+    if (!done.length && !confirm(`Nothing ticked yet. Finish ${sess.name} day anyway?`)) return;
+    const lifts = Object.fromEntries(Object.entries(g.lifts).filter(([id, v]) => v?.w > 0 && v?.r > 0 && sess.ex.some(x => x.id===id)));
+    const entry = {type:"workout", text:`${sess.name} day · ${done.length} of ${sess.ex.length} lifts`, session:sess.id, done:Object.fromEntries(done.map(id => [id, true])), ts:Date.now()};
+    if (Object.keys(lifts).length) entry.lifts = lifts;
+    const before = totals().xp;
+    saveDay(k, {entries:(d.entries||[]).concat([entry]), q:Object.assign({}, d.q, {train:true})});
+    const after = totals().xp, nx = gymNext(gymLog());
+    toast(levelFromXp(after) > levelFromXp(before) ? `LEVEL UP · <b>LV ${levelFromXp(after)}</b> · Check the shop`
+      : `Workout cleared${after > before ? ` · <b>+${after-before} XP</b>` : ""} · Next: ${esc(nx.name)}`);
+  }
 
   // ---------- auth ----------
   // Password sign-in: the owner's account is created in the Supabase dashboard and public sign-ups are off.
